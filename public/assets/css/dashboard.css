@@ -616,13 +616,27 @@
    RESPONSIVE — MOBILE
    ============================================================ */
 @media (max-width: 768px) {
+
+    /* Keep --sidebar-width at 0 so main content fills full viewport.
+       The sidebar overlays content when open — it does NOT push the layout. */
     .slms-sidebar {
-        transform: translateX(-100%);
-        width: var(--sidebar-width) !important;
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: 280px !important;        /* fixed pixel width when visible */
+        max-width: 85vw;               /* never wider than 85% of viewport */
+        transform: translateX(-100%);  /* hidden off-screen by default */
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: var(--z-sidebar, 1000);
+        overflow-y: auto;
+        overflow-x: hidden;
     }
 
+    /* Slide in when toggled */
     .slms-sidebar.mobile-open {
         transform: translateX(0);
+        box-shadow: 4px 0 30px rgba(0, 0, 0, 0.25);
     }
 
     .slms-navbar {
@@ -658,6 +672,7 @@
         grid-template-columns: 1fr;
     }
 
+    /* Overlay backdrop */
     .sidebar-overlay {
         display: none;
         position: fixed;
@@ -666,11 +681,19 @@
         right: 0;
         bottom: 0;
         background: rgba(0, 0, 0, 0.5);
-        z-index: calc(var(--z-sidebar) - 1);
+        z-index: calc(var(--z-sidebar, 1000) - 1);
+        backdrop-filter: blur(2px);
+        -webkit-backdrop-filter: blur(2px);
     }
 
     .sidebar-overlay.show {
         display: block;
+        animation: overlayFadeIn 0.25s ease-out;
+    }
+
+    @keyframes overlayFadeIn {
+        from { opacity: 0; }
+        to   { opacity: 1; }
     }
 }
 

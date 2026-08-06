@@ -1,24 +1,35 @@
+# ============================================================
+# Nadics LectureHub — Apache Rewrite Rules
+# Works on: XAMPP (localhost/lecture_hub) + shared hosting + VPS
+# ============================================================
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # ── IMPORTANT: Set the base path for subfolder installs ──────────────────
+    # On XAMPP this app lives at /lecture_hub/, so Apache needs this
+    # to correctly strip the prefix before matching rules.
+    RewriteBase /lecture_hub/
+
     # ── Step 1: Serve real files and directories directly ────────────────────
+    # CSS, JS, images, uploads etc. are served without going through PHP.
     RewriteCond %{REQUEST_FILENAME} -f [OR]
     RewriteCond %{REQUEST_FILENAME} -d
     RewriteRule ^ - [L]
 
-    # ── Step 2: Internally forward requests to the public/ sub-folder ────────
-    # Any URL that doesn't already target /public/ is rewritten internally.
-    # Apache checks the rewritten path again from Step 1, which means
-    # static assets in public/assets/ and public/js/ are served directly.
-    RewriteCond %{REQUEST_URI} !/public/
-    RewriteRule ^(.*)$ public/$1 [L]
+    # ── Step 2: Internally serve static assets from the public/ folder ───────
+    # Rewrites /assets/... and /uploads/... to /public/assets/... etc.
+    # This lets CSS/JS load without touching the PHP front controller.
+    RewriteCond %{REQUEST_URI} ^/lecture_hub/(assets|uploads|js)/
+    RewriteRule ^(assets|uploads|js)/(.*)$ public/$1/$2 [L]
 
-    # ── Step 3: Route dynamic requests to the front controller ───────────────
-    # If the rewritten path inside /public/ doesn't map to a real file,
-    # hand it to index.php (the application front controller).
+    # ── Step 3: Route all other requests to the front controller ─────────────
+    # Everything that is NOT a real file or directory and NOT a static asset
+    # goes to the root index.php, which bootstraps the application.
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^public/(.*)$ index.php [QSA,L]
+    RewriteRule ^ index.php [QSA,L]
+
 </IfModule>
 
 # ── Security: block direct access to sensitive files ─────────────────────────

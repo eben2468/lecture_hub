@@ -7,12 +7,22 @@ $auth = \Core\Auth::getInstance();
 $currentUser = $auth_user ?? $auth->user();
 $userRole = $auth->role() ?? ($currentUser['role'] ?? 'student');
 
-// Get current URI to highlight active link
-$currentUri = $_SERVER['REQUEST_URI'] ?? '/';
+// Get current URI — use multiple fallbacks so we NEVER get null.
+// On XAMPP with mod_rewrite, REQUEST_URI may be the full path including
+// the subfolder prefix, but str_contains checks are path-fragment based
+// so this is fine (e.g. str_contains('/lecture_hub/dashboard', '/dashboard')).
+$currentUri = (string) (
+    $_SERVER['REQUEST_URI']
+    ?? $_SERVER['PATH_INFO']
+    ?? $_SERVER['REDIRECT_URL']
+    ?? '/'
+);
 
-function sidebar_active(string $path): string {
-    global $currentUri;
-    return str_contains($currentUri, $path) ? ' active' : '';
+if (!function_exists('sidebar_active')) {
+    function sidebar_active(string $path): string {
+        global $currentUri;
+        return str_contains((string) $currentUri, $path) ? ' active' : '';
+    }
 }
 ?>
 
@@ -45,7 +55,7 @@ function sidebar_active(string $path): string {
             <span class="link-text">Lectures</span>
             <i class="fas fa-chevron-right submenu-arrow" style="margin-left:auto;font-size:10px;transition:transform 0.2s;"></i>
         </a>
-        <div class="nav-submenu<?= str_contains($currentUri, '/lecture') ? ' show' : '' ?>" id="sub-lectures">
+        <div class="nav-submenu<?= str_contains((string) $currentUri, '/lecture') ? ' show' : '' ?>" id="sub-lectures">
             <a href="<?= url('/lectures') ?>" class="sidebar-link<?= sidebar_active('/lectures') ?>">
                 <span class="link-text">All Lectures</span>
             </a>
@@ -99,7 +109,7 @@ function sidebar_active(string $path): string {
             <span class="link-text">Attendance</span>
         </a>
 
-        <a href="<?= url('/lectures?status=live') ?>" class="sidebar-link<?= (str_contains($currentUri, '/stream') || (str_contains($currentUri, '/lectures') && str_contains($currentUri, 'status=live'))) ? ' active' : '' ?>">
+        <a href="<?= url('/lectures?status=live') ?>" class="sidebar-link<?= (str_contains((string) $currentUri, '/stream') || (str_contains((string) $currentUri, '/lectures') && str_contains((string) $currentUri, 'status=live'))) ? ' active' : '' ?>">
             <i class="fas fa-broadcast-tower"></i>
             <span class="link-text">Live Streaming</span>
         </a>
