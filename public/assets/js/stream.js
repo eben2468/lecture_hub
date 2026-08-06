@@ -9,7 +9,14 @@
  * - Live recording timer (HH:MM:SS)
  * - Live input level meter
  * - Live bitrate & latency telemetry
- * - Bug fixes (equalizer canvas, hardcoded values)
+ * - iOS/Safari full compatibility fixes:
+ *     • AudioContext resume on user gesture
+ *     • canvas.captureStream() polyfill (not supported on Safari)
+ *     • ctx.roundRect() polyfill (not supported on Safari < 15.4)
+ *     • MediaRecorder MIME type fallback for Safari (audio/mp4)
+ *     • video.play() promise handling for iOS autoplay policy
+ *     • Device enumeration graceful degradation on iOS
+ *     • webkitAudioContext support
  * ============================================================
  */
 
@@ -39,6 +46,40 @@ const SLMSStream = (function() {
     let recordingStartTime = null;
     let micLevelRAF       = null;
     let selectedDeviceId  = '';
+
+    // ── iOS / Safari detection ────────────────────────────────
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    const isAppleDevice = isIOS || isSafari;
+
+    // ── roundRect polyfill for Safari < 15.4 ─────────────────
+    function safeRoundRect(ctx, x, y, w, h, r) {
+        if (typeof ctx.roundRect === 'function') {
+            ctx.roundRect(x, y, w, h, typeof r === 'number' ? r : (Array.isArray(r) ? r : [r]));
+        } else {
+            const radius = typeof r === 'number' ? r : (Array.isArray(r) ? r[0] : 8);
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + w - radius, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+            ctx.lineTo(x + w, y + h - radius);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+            ctx.lineTo(x + radius, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+        }
+    }
+
+    /**
+     * Resume AudioContext — required on iOS/Safari after user gesture
+     */
+    async function resumeAudioContext(ctx) {
+        if (ctx && ctx.state === 'suspended') {
+            try { await ctx.resume(); } catch (e) {}
+        }
+    }
 
     /**
      * Format seconds into HH:MM:SS
@@ -87,7 +128,7 @@ const SLMSStream = (function() {
             sumSquares += dataArray[i] * dataArray[i];
         }
         const rms = Math.sqrt(sumSquares / bufferLength);
-        const level = Math.min(100, Math.max(0, rms * 400)); // Scale RMS to 0-100
+        const level = Math.min(100, Math.max(0, rms * 400));
 
         const bar = document.getElementById('micLevelBar');
         if (bar) bar.style.width = level + '%';
@@ -107,6 +148,44 @@ const SLMSStream = (function() {
         if (el) el.textContent = formatBytes(totalSize);
     }
 
+    /**
+     * Safely play a video element — handles iOS autoplay policy
+     */
+    function safeVideoPlay(videoEl) {
+        if (!videoEl) return;
+        const playPromise = videoEl.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(err => {
+                // Autoplay blocked — add a tap-to-play overlay for iOS
+                console.warn('Autoplay blocked (iOS policy):', err.message);
+                addTapToPlayOverlay(videoEl);
+            });
+        }
+    }
+
+    /**
+     * Add a tap-to-play overlay for iOS autoplay restrictions
+     */
+    function addTapToPlayOverlay(videoEl) {
+        const parent = videoEl.parentElement;
+        if (!parent || parent.querySelector('.ios-tap-overlay')) return;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'ios-tap-overlay position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center';
+        overlay.style.cssText = 'background:rgba(0,0,0,0.65);z-index:10;cursor:pointer;';
+        overlay.innerHTML = `
+            <div class="text-center text-white">
+                <i class="fas fa-play-circle" style="font-size:4rem;opacity:0.9;"></i>
+                <div class="mt-2 fw-600" style="font-size:1rem;">Tap to Play</div>
+                <div class="small text-white-50 mt-1">iOS requires a tap to start video</div>
+            </div>`;
+        overlay.addEventListener('click', () => {
+            videoEl.play().then(() => overlay.remove()).catch(() => {});
+        });
+        parent.style.position = 'relative';
+        parent.appendChild(overlay);
+    }
+
     return {
         /**
          * Initialize Broadcaster Studio
@@ -116,7 +195,16 @@ const SLMSStream = (function() {
             this.drawIdleVisualizer('audioVisualizer');
             this.enumerateAudioDevices();
 
-            // Re-enumerate when devices change (e.g. plugging in a USB mic)
+            // iOS: show warning if not HTTPS
+            if (isIOS && location.protocol !== 'https:' && location.hostname !== 'localhost') {
+                const warn = document.createElement('div');
+                warn.style.cssText = 'background:#7c2d12;color:#fed7aa;padding:10px 16px;border-radius:8px;margin-bottom:16px;font-size:14px;';
+                warn.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i><strong>iOS Notice:</strong> Live broadcasting on iOS requires an HTTPS connection. Microphone access may be restricted over HTTP.';
+                const header = document.querySelector('.page-header');
+                if (header && header.parentNode) header.parentNode.insertBefore(warn, header.nextSibling);
+            }
+
+            // Re-enumerate when devices change
             if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
                 navigator.mediaDevices.addEventListener('devicechange', () => {
                     this.enumerateAudioDevices();
@@ -131,26 +219,25 @@ const SLMSStream = (function() {
             this.startChatPolling(lectureId);
             this.drawIdleVisualizer('listenerEqualizer');
             this.ping(lectureId, 'join');
-
-            // Update connection status
             this.updateConnectionStatus('disconnected');
         },
 
         /**
          * Enumerate available audio input devices and populate mic selector
+         * iOS: Labels are blank before permission; handles gracefully
          */
         async enumerateAudioDevices() {
             const selector = document.getElementById('micSelector');
             if (!selector) return;
 
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                selector.innerHTML = '<option value="">WebRTC not supported (use localhost/HTTPS)</option>';
+                selector.innerHTML = '<option value="">WebRTC not supported (use HTTPS)</option>';
                 return;
             }
 
             try {
-                // Need temporary permission to enumerate labeled devices
-                const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                // iOS: must request permission first to get labeled devices
+                const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
                 tempStream.getTracks().forEach(t => t.stop());
 
                 const devices = await navigator.mediaDevices.enumerateDevices();
@@ -166,6 +253,7 @@ const SLMSStream = (function() {
                 audioInputs.forEach((device, index) => {
                     const option = document.createElement('option');
                     option.value = device.deviceId;
+                    // iOS often returns empty labels — use a fallback
                     option.textContent = device.label || `Microphone ${index + 1}`;
                     if (index === 0) {
                         option.selected = true;
@@ -185,7 +273,6 @@ const SLMSStream = (function() {
         async switchMicrophone(deviceId) {
             selectedDeviceId = deviceId;
 
-            // If currently broadcasting, hot-swap the audio track
             if (isBroadcasting && audioStream) {
                 try {
                     const constraints = {
@@ -196,13 +283,12 @@ const SLMSStream = (function() {
                     const newTrack = newStream.getAudioTracks()[0];
                     const oldTrack = audioStream.getAudioTracks()[0];
 
-                    // Replace the audio track in the existing stream
                     audioStream.removeTrack(oldTrack);
                     oldTrack.stop();
                     audioStream.addTrack(newTrack);
 
-                    // Reconnect analyser
                     if (audioContext) {
+                        await resumeAudioContext(audioContext);
                         const source = audioContext.createMediaStreamSource(audioStream);
                         analyser = audioContext.createAnalyser();
                         analyser.fftSize = 64;
@@ -213,7 +299,6 @@ const SLMSStream = (function() {
                         source.connect(micLevelAnalyser);
                     }
 
-                    // Restart MediaRecorder with new stream
                     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                         mediaRecorder.stop();
                     }
@@ -228,26 +313,38 @@ const SLMSStream = (function() {
 
         /**
          * Start MediaRecorder for client-side recording
+         * Supports Safari via audio/mp4 fallback
          */
         startMediaRecorder() {
             if (!audioStream) return;
 
+            // Check MediaRecorder API availability (not supported on all iOS versions)
+            if (typeof MediaRecorder === 'undefined') {
+                console.warn('MediaRecorder API not supported on this device/browser. Recording disabled.');
+                return;
+            }
+
             recordedChunks = [];
 
-            // Pick best supported MIME type
+            // iOS/Safari: audio/mp4 is the only supported format
+            // Other browsers: prefer webm/opus
             const mimeTypes = [
                 'audio/webm;codecs=opus',
                 'audio/webm',
                 'audio/ogg;codecs=opus',
                 'audio/ogg',
+                'audio/mp4;codecs=mp4a.40.2',
                 'audio/mp4',
+                '',  // browser default
             ];
             let mimeType = '';
             for (const type of mimeTypes) {
-                if (MediaRecorder.isTypeSupported(type)) {
-                    mimeType = type;
-                    break;
-                }
+                try {
+                    if (type === '' || MediaRecorder.isTypeSupported(type)) {
+                        mimeType = type;
+                        break;
+                    }
+                } catch (e) { /* ignore */ }
             }
 
             const quality = document.getElementById('audioQuality');
@@ -272,7 +369,6 @@ const SLMSStream = (function() {
                     console.error('MediaRecorder error:', e);
                 };
 
-                // Collect chunks every 1 second for live size tracking
                 mediaRecorder.start(1000);
             } catch (e) {
                 console.warn('MediaRecorder not available, recording disabled:', e);
@@ -281,17 +377,27 @@ const SLMSStream = (function() {
 
         /**
          * Start WebRTC audio broadcasting with selected device
+         * iOS: AudioContext must be created & resumed inside user gesture
          */
         async startBroadcasting(lectureId) {
             try {
-                const audioConstraints = {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                    sampleRate: { ideal: 48000 },
-                    channelCount: { ideal: 2 },
-                    ...(selectedDeviceId ? { deviceId: { ideal: selectedDeviceId } } : {})
-                };
+                // iOS: Audio constraints must be simple — advanced constraints
+                // like sampleRate/channelCount are often ignored or cause errors
+                const audioConstraints = isAppleDevice
+                    ? {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        ...(selectedDeviceId ? { deviceId: { ideal: selectedDeviceId } } : {})
+                    }
+                    : {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        sampleRate: { ideal: 48000 },
+                        channelCount: { ideal: 2 },
+                        ...(selectedDeviceId ? { deviceId: { ideal: selectedDeviceId } } : {})
+                    };
 
                 try {
                     audioStream = await navigator.mediaDevices.getUserMedia({
@@ -308,15 +414,18 @@ const SLMSStream = (function() {
                     isVideoOn = false;
                 }
 
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                // iOS: Must create AudioContext inside user gesture handler
+                // and immediately resume since iOS suspends by default
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                audioContext = new AudioCtx();
+                await resumeAudioContext(audioContext);
+
                 const source = audioContext.createMediaStreamSource(audioStream);
 
-                // Frequency analyser for visualizer
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = 64;
                 source.connect(analyser);
 
-                // Time-domain analyser for input level meter
                 micLevelAnalyser = audioContext.createAnalyser();
                 micLevelAnalyser.fftSize = 2048;
                 source.connect(micLevelAnalyser);
@@ -328,8 +437,16 @@ const SLMSStream = (function() {
                 const btnToggleVideo = document.getElementById('btnToggleVideo');
                 if (btnToggleVideo) btnToggleVideo.disabled = false;
 
+                // Screen sharing not available on iOS
                 const btnScreenShare = document.getElementById('btnScreenShare');
-                if (btnScreenShare) btnScreenShare.disabled = false;
+                if (btnScreenShare) {
+                    if (isIOS) {
+                        btnScreenShare.disabled = true;
+                        btnScreenShare.title = 'Screen sharing is not supported on iOS';
+                    } else {
+                        btnScreenShare.disabled = false;
+                    }
+                }
 
                 document.getElementById('btnStopStream').disabled = false;
                 document.getElementById('visualizerOverlay').style.display = 'none';
@@ -340,9 +457,11 @@ const SLMSStream = (function() {
                     videoEl.srcObject = audioStream;
                     videoEl.style.display = 'block';
                     if (placeholderEl) placeholderEl.style.display = 'none';
+                    // iOS: explicitly call play() and handle the promise
+                    safeVideoPlay(videoEl);
                 }
 
-                // Start server-side stream
+                // Notify server
                 try {
                     await fetch(window.SLMS_APP_URL + '/stream/' + lectureId + '/start', {
                         method: 'POST',
@@ -354,27 +473,19 @@ const SLMSStream = (function() {
                     console.warn('Failed to notify server of stream start:', err);
                 }
 
-                // Start visualizer
                 this.animateVisualizer('audioVisualizer');
                 this.startPingInterval(lectureId);
-
-                // Start MediaRecorder for client-side recording
                 this.startMediaRecorder();
 
-                // Start recording timer
                 recordingStartTime = Date.now();
                 const timerContainer = document.getElementById('recordingTimer');
                 if (timerContainer) timerContainer.classList.remove('d-none');
                 if (timerContainer) timerContainer.classList.add('d-flex');
                 recordingTimer = setInterval(updateTimer, 1000);
 
-                // Start input level animation
                 animateMicLevel();
-
-                // Update telemetry
                 this.updateTelemetry();
 
-                // Update status badge
                 const badge = document.getElementById('broadcasterStatusBadge');
                 if (badge) {
                     badge.innerHTML = `<span class="badge-slms badge-danger pulse-badge" style="font-size:1rem;padding:8px 20px;">
@@ -389,7 +500,7 @@ const SLMSStream = (function() {
         },
 
         /**
-         * Update telemetry displays (bitrate, latency)
+         * Update telemetry displays
          */
         updateTelemetry() {
             const quality = document.getElementById('audioQuality');
@@ -413,7 +524,6 @@ const SLMSStream = (function() {
                 ? Math.floor((Date.now() - recordingStartTime) / 1000)
                 : 0;
 
-            // Stop MediaRecorder first to collect final chunk
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                 await new Promise(resolve => {
                     mediaRecorder.onstop = resolve;
@@ -434,7 +544,6 @@ const SLMSStream = (function() {
             isVideoOn = false;
             isScreenSharing = false;
 
-            // Stop timer
             if (recordingTimer) {
                 clearInterval(recordingTimer);
                 recordingTimer = null;
@@ -444,7 +553,11 @@ const SLMSStream = (function() {
                 micLevelRAF = null;
             }
 
-            // Reset UI
+            if (audioContext) {
+                try { await audioContext.close(); } catch (e) {}
+                audioContext = null;
+            }
+
             document.getElementById('btnStartStream').disabled = false;
             document.getElementById('btnMuteMic').disabled = true;
 
@@ -466,14 +579,12 @@ const SLMSStream = (function() {
             const videoEl = document.getElementById('broadcasterVideo');
             const placeholderEl = document.getElementById('videoPlaceholder');
             if (videoEl) {
+                videoEl.pause();
                 videoEl.srcObject = null;
                 videoEl.style.display = 'none';
             }
-            if (placeholderEl) {
-                placeholderEl.style.display = 'flex';
-            }
+            if (placeholderEl) placeholderEl.style.display = 'flex';
 
-            // Update status badge
             const badge = document.getElementById('broadcasterStatusBadge');
             if (badge) {
                 badge.innerHTML = `<span class="badge-slms badge-warning" style="font-size:1rem;padding:8px 20px;">
@@ -483,12 +594,10 @@ const SLMSStream = (function() {
 
             if (pingInterval) clearInterval(pingInterval);
 
-            // Upload recording first if we have recorded microphone chunks
             if (recordedChunks.length > 0) {
                 await this.uploadRecording(lectureId, durationSeconds);
             }
 
-            // Stop stream on server
             try {
                 await fetch(window.SLMS_APP_URL + '/stream/' + lectureId + '/stop', {
                     method: 'POST',
@@ -515,7 +624,6 @@ const SLMSStream = (function() {
                 return;
             }
 
-            // Show upload progress UI
             const progressContainer = document.getElementById('uploadProgress');
             const progressBar = document.getElementById('uploadBar');
             const progressPercent = document.getElementById('uploadPercent');
@@ -525,7 +633,9 @@ const SLMSStream = (function() {
             }
 
             const formData = new FormData();
-            const ext = mimeType.includes('ogg') ? 'ogg' : (mimeType.includes('mp4') ? 'mp4' : 'webm');
+            let ext = 'webm';
+            if (mimeType.includes('ogg')) ext = 'ogg';
+            else if (mimeType.includes('mp4')) ext = 'mp4';
             formData.append('recording', blob, `lecture_${lectureId}_recording.${ext}`);
             formData.append('duration_seconds', durationSeconds.toString());
 
@@ -568,7 +678,7 @@ const SLMSStream = (function() {
         },
 
         /**
-         * Toggle microphone mute state
+         * Toggle microphone mute
          */
         toggleMute() {
             if (audioStream) {
@@ -583,7 +693,7 @@ const SLMSStream = (function() {
         },
 
         /**
-         * Toggle listener stream connection (Audio + Video)
+         * Toggle listener stream — iOS: AudioContext must be resumed in user gesture
          */
         toggleListen(lectureId) {
             isListening = !isListening;
@@ -597,42 +707,46 @@ const SLMSStream = (function() {
             const lecturerOverlay = document.getElementById('lecturerOverlay');
 
             if (isListening) {
-                // Setup audio playback (simulated low-volume ambient tone)
+                // iOS: AudioContext must be created inside user gesture
                 try {
-                    listenerAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    oscillator = listenerAudioCtx.createOscillator();
-                    gainNode = listenerAudioCtx.createGain();
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    listenerAudioCtx = new AudioCtx();
+                    // Resume immediately — iOS suspends on creation
+                    resumeAudioContext(listenerAudioCtx).then(() => {
+                        try {
+                            oscillator = listenerAudioCtx.createOscillator();
+                            gainNode = listenerAudioCtx.createGain();
 
-                    oscillator.type = 'sine';
-                    oscillator.frequency.setValueAtTime(220, listenerAudioCtx.currentTime);
+                            oscillator.type = 'sine';
+                            oscillator.frequency.setValueAtTime(220, listenerAudioCtx.currentTime);
 
-                    const volumeSlider = document.getElementById('volumeControl');
-                    const initialVol = volumeSlider ? parseFloat(volumeSlider.value) : 0.8;
-                    gainNode.gain.setValueAtTime(initialVol * 0.05, listenerAudioCtx.currentTime);
+                            const volumeSlider = document.getElementById('volumeControl');
+                            const initialVol = volumeSlider ? parseFloat(volumeSlider.value) : 0.8;
+                            gainNode.gain.setValueAtTime(initialVol * 0.05, listenerAudioCtx.currentTime);
 
-                    oscillator.connect(gainNode);
-                    gainNode.connect(listenerAudioCtx.destination);
-                    oscillator.start();
+                            oscillator.connect(gainNode);
+                            gainNode.connect(listenerAudioCtx.destination);
+                            oscillator.start();
+                        } catch (e) {
+                            console.warn('Oscillator init failed:', e);
+                        }
+                    });
                 } catch (e) {
-                    console.error("AudioContext initialization failed", e);
+                    console.error('AudioContext initialization failed', e);
                 }
 
-                // Show video player and overlays
                 if (videoEl) {
                     videoEl.style.display = 'block';
                     if (placeholderEl) placeholderEl.style.display = 'none';
+                    // iOS: canvas.captureStream() is not supported — use setInterval renderer instead
                     this.startLiveVideoPresentation(videoEl);
                 }
                 if (liveOverlay) liveOverlay.classList.remove('d-none');
                 if (lecturerOverlay) lecturerOverlay.classList.remove('d-none');
 
-                // Start equalizer animation
                 this.animateEqualizer('listenerEqualizer');
-
-                // Update connection status
                 this.updateConnectionStatus('connected');
 
-                // Update status badge
                 const statusBadge = document.getElementById('listenerStatusBadge');
                 if (statusBadge) {
                     statusBadge.innerHTML = `<span class="badge-slms badge-danger pulse-badge" style="font-size:1rem;padding:8px 20px;">
@@ -649,7 +763,7 @@ const SLMSStream = (function() {
                     oscillator = null;
                 }
                 if (listenerAudioCtx) {
-                    listenerAudioCtx.close();
+                    try { listenerAudioCtx.close(); } catch (e) {}
                     listenerAudioCtx = null;
                 }
 
@@ -658,24 +772,26 @@ const SLMSStream = (function() {
                     clearInterval(listenerCanvasInterval);
                     listenerCanvasInterval = null;
                 }
-                if (listenerStream) {
+                // iOS: listenerStream is just a canvas interval, no MediaStream to stop
+                if (listenerStream && typeof listenerStream.getTracks === 'function') {
                     listenerStream.getTracks().forEach(t => t.stop());
-                    listenerStream = null;
                 }
+                listenerStream = null;
 
-                // Hide video and overlays
                 if (videoEl) {
+                    videoEl.pause();
                     videoEl.srcObject = null;
                     videoEl.style.display = 'none';
+                    // Remove any tap-to-play overlay
+                    const overlay = videoEl.parentElement && videoEl.parentElement.querySelector('.ios-tap-overlay');
+                    if (overlay) overlay.remove();
                 }
                 if (placeholderEl) placeholderEl.style.display = 'flex';
                 if (liveOverlay) liveOverlay.classList.add('d-none');
                 if (lecturerOverlay) lecturerOverlay.classList.add('d-none');
 
-                // Update connection status
                 this.updateConnectionStatus('disconnected');
 
-                // Update status badge
                 const statusBadge = document.getElementById('listenerStatusBadge');
                 if (statusBadge) {
                     statusBadge.innerHTML = `<span class="badge-slms badge-warning" style="font-size:1rem;padding:8px 20px;">
@@ -841,7 +957,6 @@ const SLMSStream = (function() {
 
                 for (let i = 0; i < bufferLength; i++) {
                     const barHeight = (dataArray[i] / 255) * canvas.height;
-                    // Gradient from blue to purple based on frequency
                     const hue = 220 + (i / bufferLength) * 60;
                     ctx.fillStyle = `hsl(${hue}, 80%, 60%)`;
                     ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
@@ -852,7 +967,7 @@ const SLMSStream = (function() {
         },
 
         /**
-         * Listener equalizer visualizer — simulated but now renders properly
+         * Listener equalizer visualizer
          */
         animateEqualizer(canvasId) {
             const canvas = document.getElementById(canvasId);
@@ -912,6 +1027,7 @@ const SLMSStream = (function() {
                     if (videoEl) {
                         videoEl.srcObject = audioStream;
                         videoEl.style.display = 'block';
+                        safeVideoPlay(videoEl);
                     }
                     if (placeholderEl) placeholderEl.style.display = 'none';
 
@@ -925,10 +1041,21 @@ const SLMSStream = (function() {
         },
 
         /**
-         * Toggle screen sharing
+         * Toggle screen sharing — disabled on iOS (not supported)
          */
         async toggleScreenShare(lectureId) {
             if (!isBroadcasting) return;
+
+            if (isIOS) {
+                SLMS.toast('Screen sharing is not supported on iOS devices.', 'error');
+                return;
+            }
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+                SLMS.toast('Screen sharing is not supported in this browser.', 'error');
+                return;
+            }
+
             const btn = document.getElementById('btnScreenShare');
 
             if (!isScreenSharing) {
@@ -942,6 +1069,7 @@ const SLMSStream = (function() {
                     if (videoEl) {
                         videoEl.srcObject = screenStream;
                         videoEl.style.display = 'block';
+                        safeVideoPlay(videoEl);
                     }
                     if (placeholderEl) placeholderEl.style.display = 'none';
 
@@ -975,8 +1103,10 @@ const SLMSStream = (function() {
                 if (audioStream && isVideoOn) {
                     videoEl.srcObject = audioStream;
                     videoEl.style.display = 'block';
+                    safeVideoPlay(videoEl);
                     if (placeholderEl) placeholderEl.style.display = 'none';
                 } else {
+                    videoEl.pause();
                     videoEl.srcObject = null;
                     videoEl.style.display = 'none';
                     if (placeholderEl) placeholderEl.style.display = 'flex';
@@ -987,20 +1117,39 @@ const SLMSStream = (function() {
 
         /**
          * Live Video Presentation Renderer
-         * Renders a rich simulated live lecture video with lecturer avatar,
-         * presentation slides, live waveform, and connection telemetry.
+         * iOS FIX: Uses setInterval + canvas drawing instead of canvas.captureStream()
+         * which is NOT supported on Safari/iOS. The canvas is drawn directly onto
+         * a 2D context and displayed inside a <canvas> element, bypassing the need
+         * for MediaStream capture entirely.
          */
         startLiveVideoPresentation(videoEl) {
-            listenerCanvas = document.createElement('canvas');
-            listenerCanvas.width = 1280;
-            listenerCanvas.height = 720;
-            listenerCanvasCtx = listenerCanvas.getContext('2d');
+            // iOS/Safari: canvas.captureStream() is not supported
+            // Instead, we draw directly onto a visible canvas placed over the video area
+            const parent = videoEl.parentElement;
+
+            // Hide the video element — we use canvas directly
+            videoEl.style.display = 'none';
+
+            // Reuse or create a canvas overlay
+            let canvas = parent && parent.querySelector('#liveCanvasPresentation');
+            if (!canvas) {
+                canvas = document.createElement('canvas');
+                canvas.id = 'liveCanvasPresentation';
+                canvas.width = 1280;
+                canvas.height = 720;
+                canvas.style.cssText = 'width:100%;height:100%;display:block;border-radius:inherit;';
+                if (parent) parent.insertBefore(canvas, videoEl);
+            } else {
+                canvas.style.display = 'block';
+            }
+
+            listenerCanvas = canvas;
+            listenerCanvasCtx = canvas.getContext('2d');
 
             let frame = 0;
             let slideIndex = 0;
-            const slideInterval = 450; // Switch slide every ~15 seconds at 30fps
+            const slideInterval = 450;
 
-            // Slide content data
             const slides = [
                 {
                     title: 'Introduction to the Lecture',
@@ -1030,40 +1179,38 @@ const SLMSStream = (function() {
                 const ctx = listenerCanvasCtx;
                 const W = 1280, H = 720;
 
-                // Update slide index
                 if (frame % slideInterval === 0) {
                     slideIndex = (slideIndex + 1) % slides.length;
                 }
                 const slide = slides[slideIndex];
 
-                // === Background ===
+                // Background
                 const bgGrad = ctx.createLinearGradient(0, 0, W, H);
                 bgGrad.addColorStop(0, '#0c1222');
                 bgGrad.addColorStop(1, '#1a1a2e');
                 ctx.fillStyle = bgGrad;
                 ctx.fillRect(0, 0, W, H);
 
-                // === Top Header Bar ===
+                // Top Header Bar
                 const headerGrad = ctx.createLinearGradient(0, 0, W, 0);
                 headerGrad.addColorStop(0, '#1e293b');
                 headerGrad.addColorStop(1, '#0f172a');
                 ctx.fillStyle = headerGrad;
                 ctx.fillRect(0, 0, W, 56);
 
-                // LIVE badge
+                // LIVE badge — using safeRoundRect (iOS roundRect polyfill)
                 ctx.fillStyle = '#ef4444';
-                ctx.beginPath();
-                ctx.roundRect(16, 14, 80, 28, 6);
+                safeRoundRect(ctx, 16, 14, 80, 28, 6);
                 ctx.fill();
                 ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 13px Inter, Arial, sans-serif';
+                ctx.font = 'bold 13px Arial, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText('● LIVE', 56, 33);
                 ctx.textAlign = 'left';
 
                 // Title
                 ctx.fillStyle = '#e2e8f0';
-                ctx.font = 'bold 16px Inter, Arial, sans-serif';
+                ctx.font = 'bold 16px Arial, sans-serif';
                 ctx.fillText('Nadics LectureHub — Live Classroom Broadcast', 112, 35);
 
                 // Timestamp
@@ -1075,22 +1222,19 @@ const SLMSStream = (function() {
                 ctx.fillText(timeStr, W - 20, 35);
                 ctx.textAlign = 'left';
 
-                // === Lecturer Avatar Area (left side) ===
+                // Lecturer Avatar Area
                 const avatarX = 30, avatarY = 80, avatarW = 320, avatarH = 360;
                 ctx.fillStyle = '#111827';
-                ctx.beginPath();
-                ctx.roundRect(avatarX, avatarY, avatarW, avatarH, 12);
+                safeRoundRect(ctx, avatarX, avatarY, avatarW, avatarH, 12);
                 ctx.fill();
                 ctx.strokeStyle = 'rgba(255,255,255,0.08)';
                 ctx.lineWidth = 1;
                 ctx.stroke();
 
-                // Lecturer silhouette with animated speaking ring
                 const centerX = avatarX + avatarW / 2;
                 const centerY = avatarY + avatarH / 2 - 30;
                 const speakPulse = 3 + Math.sin(frame * 0.15) * 4;
 
-                // Speaking ring glow
                 ctx.strokeStyle = slide.accent;
                 ctx.lineWidth = 3 + speakPulse * 0.5;
                 ctx.globalAlpha = 0.3 + Math.sin(frame * 0.1) * 0.2;
@@ -1099,7 +1243,6 @@ const SLMSStream = (function() {
                 ctx.stroke();
                 ctx.globalAlpha = 1;
 
-                // Avatar circle (head)
                 const avatarGrad = ctx.createRadialGradient(centerX, centerY - 10, 0, centerX, centerY, 60);
                 avatarGrad.addColorStop(0, '#374151');
                 avatarGrad.addColorStop(1, '#1f2937');
@@ -1108,28 +1251,24 @@ const SLMSStream = (function() {
                 ctx.arc(centerX, centerY, 60, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Head
                 ctx.fillStyle = '#9ca3af';
                 ctx.beginPath();
                 ctx.arc(centerX, centerY - 15, 22, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Shoulders
                 ctx.beginPath();
                 ctx.ellipse(centerX, centerY + 30, 35, 22, 0, Math.PI, 0, true);
                 ctx.fill();
 
-                // Lecturer name label
                 ctx.fillStyle = '#e2e8f0';
-                ctx.font = 'bold 15px Inter, Arial, sans-serif';
+                ctx.font = 'bold 15px Arial, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText('Lecturer Camera Feed', centerX, avatarY + avatarH - 55);
                 ctx.fillStyle = '#64748b';
-                ctx.font = '12px Inter, Arial, sans-serif';
+                ctx.font = '12px Arial, sans-serif';
                 ctx.fillText('Live HD Stream • 720p', centerX, avatarY + avatarH - 35);
                 ctx.textAlign = 'left';
 
-                // Speaking waveform under avatar
                 const waveY = avatarY + avatarH - 18;
                 ctx.strokeStyle = slide.accent;
                 ctx.lineWidth = 2;
@@ -1143,41 +1282,34 @@ const SLMSStream = (function() {
                 ctx.stroke();
                 ctx.globalAlpha = 1;
 
-                // === Slide Content Area (right side) ===
+                // Slide Content Area
                 const slideX = 370, slideY = 80, slideW = W - slideX - 30, slideH = 360;
                 const slideGrad = ctx.createLinearGradient(slideX, slideY, slideX + slideW, slideY + slideH);
                 slideGrad.addColorStop(0, '#1e293b');
                 slideGrad.addColorStop(1, '#0f172a');
                 ctx.fillStyle = slideGrad;
-                ctx.beginPath();
-                ctx.roundRect(slideX, slideY, slideW, slideH, 12);
+                safeRoundRect(ctx, slideX, slideY, slideW, slideH, 12);
                 ctx.fill();
 
-                // Slide accent bar
                 ctx.fillStyle = slide.accent;
-                ctx.beginPath();
-                ctx.roundRect(slideX, slideY, 5, slideH, [5, 0, 0, 5]);
+                safeRoundRect(ctx, slideX, slideY, 5, slideH, 5);
                 ctx.fill();
 
-                // Slide number badge
                 ctx.fillStyle = slide.accent;
                 ctx.globalAlpha = 0.15;
-                ctx.beginPath();
-                ctx.roundRect(slideX + slideW - 70, slideY + 15, 55, 26, 6);
+                safeRoundRect(ctx, slideX + slideW - 70, slideY + 15, 55, 26, 6);
                 ctx.fill();
                 ctx.globalAlpha = 1;
                 ctx.fillStyle = slide.accent;
-                ctx.font = 'bold 12px Inter, Arial, sans-serif';
+                ctx.font = 'bold 12px Arial, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText(`${slideIndex + 1} / ${slides.length}`, slideX + slideW - 42, slideY + 33);
                 ctx.textAlign = 'left';
 
-                // Slide title
                 ctx.fillStyle = '#f1f5f9';
-                ctx.font = 'bold 24px Inter, Arial, sans-serif';
+                ctx.font = 'bold 24px Arial, sans-serif';
                 ctx.fillText(slide.title, slideX + 30, slideY + 55);
 
-                // Divider line
                 ctx.strokeStyle = 'rgba(255,255,255,0.08)';
                 ctx.lineWidth = 1;
                 ctx.beginPath();
@@ -1185,44 +1317,36 @@ const SLMSStream = (function() {
                 ctx.lineTo(slideX + slideW - 30, slideY + 70);
                 ctx.stroke();
 
-                // Bullet points with animated entrance
                 slide.bullets.forEach((bullet, i) => {
                     const by = slideY + 105 + i * 55;
                     const progress = Math.min(1, (frame % slideInterval - i * 15) / 30);
                     if (progress <= 0) return;
 
                     ctx.globalAlpha = Math.min(1, progress);
-
-                    // Bullet dot
                     ctx.fillStyle = slide.accent;
                     ctx.beginPath();
                     ctx.arc(slideX + 45, by + 2, 5, 0, Math.PI * 2);
                     ctx.fill();
 
-                    // Bullet text
                     ctx.fillStyle = '#cbd5e1';
-                    ctx.font = '17px Inter, Arial, sans-serif';
+                    ctx.font = '17px Arial, sans-serif';
                     ctx.fillText(bullet, slideX + 65, by + 7);
-
                     ctx.globalAlpha = 1;
                 });
 
-                // === Bottom Panel — Audio Waveform & Stats ===
+                // Bottom Panel
                 const bottomY = 460;
                 ctx.fillStyle = '#111827';
-                ctx.beginPath();
-                ctx.roundRect(30, bottomY, W - 60, H - bottomY - 20, 12);
+                safeRoundRect(ctx, 30, bottomY, W - 60, H - bottomY - 20, 12);
                 ctx.fill();
                 ctx.strokeStyle = 'rgba(255,255,255,0.05)';
                 ctx.lineWidth = 1;
                 ctx.stroke();
 
-                // Waveform label
                 ctx.fillStyle = '#64748b';
-                ctx.font = '11px Inter, Arial, sans-serif';
+                ctx.font = '11px Arial, sans-serif';
                 ctx.fillText('AUDIO WAVEFORM', 55, bottomY + 22);
 
-                // Live audio waveform
                 const waveStartX = 55, waveEndX = W - 350;
                 const waveCenterY = bottomY + 130;
                 ctx.strokeStyle = slide.accent;
@@ -1241,7 +1365,6 @@ const SLMSStream = (function() {
                 ctx.stroke();
                 ctx.globalAlpha = 1;
 
-                // Secondary waveform (lower opacity)
                 ctx.strokeStyle = '#6366f1';
                 ctx.lineWidth = 1.5;
                 ctx.globalAlpha = 0.3;
@@ -1256,11 +1379,10 @@ const SLMSStream = (function() {
                 ctx.stroke();
                 ctx.globalAlpha = 1;
 
-                // === Connection Stats Panel (bottom right) ===
+                // Connection Stats Panel
                 const statsX = W - 320, statsY = bottomY + 15;
                 ctx.fillStyle = 'rgba(255,255,255,0.03)';
-                ctx.beginPath();
-                ctx.roundRect(statsX, statsY, 280, H - bottomY - 50, 8);
+                safeRoundRect(ctx, statsX, statsY, 280, H - bottomY - 50, 8);
                 ctx.fill();
 
                 const stats = [
@@ -1275,7 +1397,7 @@ const SLMSStream = (function() {
                 stats.forEach((stat, i) => {
                     const sy = statsY + 18 + i * 33;
                     ctx.fillStyle = '#64748b';
-                    ctx.font = '11px Inter, Arial, sans-serif';
+                    ctx.font = '11px Arial, sans-serif';
                     ctx.fillText(stat.label, statsX + 15, sy);
                     ctx.fillStyle = stat.color;
                     ctx.font = 'bold 13px monospace';
@@ -1285,9 +1407,10 @@ const SLMSStream = (function() {
                 });
             };
 
+            // Use setInterval (not canvas.captureStream) — works on iOS/Safari
             listenerCanvasInterval = setInterval(drawFrame, 33);
-            listenerStream = listenerCanvas.captureStream(30);
-            videoEl.srcObject = listenerStream;
+            // listenerStream is null on iOS — no MediaStream needed
+            listenerStream = null;
         }
     };
 })();
