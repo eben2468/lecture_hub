@@ -293,11 +293,18 @@ if (!function_exists('asset')) {
     {
         $path = ltrim($path, '/');
 
+        // Cache busting version parameter based on file modification time
+        $fileOnDisk = BASE_PATH . '/public/assets/' . $path;
+        $version = '';
+        if (file_exists($fileOnDisk)) {
+            $version = '?v=' . filemtime($fileOnDisk);
+        }
+
         // ── Explicit override ────────────────────────────────────────────────
         // Set ASSET_URL=https://domain.com in .env to skip auto-detection.
         $explicitAssetUrl = rtrim(env('ASSET_URL', ''), '/');
         if (!empty($explicitAssetUrl)) {
-            return $explicitAssetUrl . '/assets/' . $path;
+            return $explicitAssetUrl . '/assets/' . $path . $version;
         }
 
         // ── Auto-detect the correct asset prefix ─────────────────────────────
@@ -308,14 +315,14 @@ if (!function_exists('asset')) {
             // Running via public/index.php → document root IS /public/
             // Assets are directly at /assets/ — no /public/ prefix needed.
             $baseUrl = rtrim(url(''), '/');
-            return $baseUrl . '/assets/' . $path;
+            return $baseUrl . '/assets/' . $path . $version;
         }
 
         // Running via root index.php → document root is the project root.
         // Assets are inside /public/assets/ — must include /public/ in URL
         // so the file is served directly without any .htaccess rewriting.
         $baseUrl = rtrim(url(''), '/');
-        return $baseUrl . '/public/assets/' . $path;
+        return $baseUrl . '/public/assets/' . $path . $version;
     }
 }
 
