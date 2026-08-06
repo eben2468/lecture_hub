@@ -11,22 +11,27 @@ const Sidebar = {
     STORAGE_KEY: 'slms_sidebar_collapsed',
 
     init() {
-        this.sidebar = document.querySelector('.slms-sidebar');
-        this.toggleBtn = document.querySelector('.sidebar-toggle');
-        this.overlay = document.querySelector('.sidebar-overlay');
-        this.body = document.body;
+        // Support lookup by both class and ID for maximum reliability
+        this.sidebar   = document.getElementById('sidebar') || document.querySelector('.slms-sidebar');
+        this.toggleBtn = document.getElementById('sidebar-toggle') || document.querySelector('.sidebar-toggle');
+        this.overlay   = document.getElementById('sidebar-overlay') || document.querySelector('.sidebar-overlay');
+        this.body      = document.body;
 
         if (!this.sidebar) return;
 
-        // Restore state from localStorage
+        // Restore state from localStorage (desktop only)
         this.restoreState();
 
-        // Toggle button click
+        // Toggle button click — attach directly so it always works on every page
         if (this.toggleBtn) {
-            this.toggleBtn.addEventListener('click', () => this.toggle());
+            this.toggleBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.toggle();
+            });
         }
 
-        // Overlay click (mobile)
+        // Overlay click closes sidebar on mobile
         if (this.overlay) {
             this.overlay.addEventListener('click', () => this.closeMobile());
         }
@@ -37,8 +42,12 @@ const Sidebar = {
         // Submenu toggles
         this.initSubmenus();
 
-        // Handle window resize
-        window.addEventListener('resize', SLMS.debounce(() => this.handleResize(), 200));
+        // Handle window resize — guard against SLMS not being available yet
+        const debouncedResize = (typeof window.SLMS !== 'undefined' && typeof window.SLMS.debounce === 'function')
+            ? window.SLMS.debounce(() => this.handleResize(), 200)
+            : () => this.handleResize();
+
+        window.addEventListener('resize', debouncedResize);
     },
 
     toggle() {
@@ -54,7 +63,7 @@ const Sidebar = {
         this.body.classList.toggle('sidebar-collapsed');
 
         const isCollapsed = this.sidebar.classList.contains('collapsed');
-        localStorage.setItem(this.STORAGE_KEY, isCollapsed ? '1' : '0');
+        try { localStorage.setItem(this.STORAGE_KEY, isCollapsed ? '1' : '0'); } catch(e) {}
     },
 
     toggleMobile() {
@@ -62,6 +71,8 @@ const Sidebar = {
         if (this.overlay) {
             this.overlay.classList.toggle('show');
         }
+        // Prevent body scroll while sidebar is open
+        this.body.style.overflow = this.sidebar.classList.contains('mobile-open') ? 'hidden' : '';
     },
 
     closeMobile() {
@@ -69,15 +80,18 @@ const Sidebar = {
         if (this.overlay) {
             this.overlay.classList.remove('show');
         }
+        this.body.style.overflow = '';
     },
 
     restoreState() {
         if (window.innerWidth > 768) {
-            const isCollapsed = localStorage.getItem(this.STORAGE_KEY) === '1';
-            if (isCollapsed) {
-                this.sidebar.classList.add('collapsed');
-                this.body.classList.add('sidebar-collapsed');
-            }
+            try {
+                const isCollapsed = localStorage.getItem(this.STORAGE_KEY) === '1';
+                if (isCollapsed) {
+                    this.sidebar.classList.add('collapsed');
+                    this.body.classList.add('sidebar-collapsed');
+                }
+            } catch(e) {}
         }
     },
 
@@ -87,6 +101,7 @@ const Sidebar = {
             if (this.overlay) {
                 this.overlay.classList.remove('show');
             }
+            this.body.style.overflow = '';
         }
     },
 
@@ -137,3 +152,4 @@ const Sidebar = {
 };
 
 document.addEventListener('DOMContentLoaded', () => Sidebar.init());
+

@@ -177,6 +177,8 @@ html {
     font-size: 16px;
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
+    overflow-x: hidden; /* Prevent horizontal scroll at the root level */
+    max-width: 100%;
 }
 
 body {
@@ -188,6 +190,7 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overflow-x: hidden;
+    max-width: 100%;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -1015,6 +1018,23 @@ a:hover {
     .stat-card .stat-icon { width: 44px; height: 44px; }
 
     .hide-mobile { display: none !important; }
+
+    /* Prevent any container from overflowing the viewport width */
+    .container-fluid,
+    .container,
+    .slms-main,
+    .slms-card,
+    .stat-card {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* Ensure tables scroll internally rather than pushing page */
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100%;
+    }
 }
 
 @media (max-width: 576px) {
