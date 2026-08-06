@@ -64,7 +64,19 @@ $initials = strtoupper(substr($user['first_name'] ?? 'U', 0, 1) . substr($user['
         <div class="col-lg-8">
             <div class="slms-card">
                 <div class="card-header p-0 border-bottom">
-                    <ul class="nav nav-tabs border-0 px-3 pt-2" id="profileTabs" role="tablist">
+                    <style>
+                        #profileTabs::-webkit-scrollbar {
+                            display: none;
+                        }
+                        #profileTabs {
+                            -ms-overflow-style: none;
+                            scrollbar-width: none;
+                        }
+                        #profileTabs .nav-link {
+                            white-space: nowrap;
+                        }
+                    </style>
+                    <ul class="nav nav-tabs border-0 px-3 pt-2 flex-nowrap overflow-x-auto" id="profileTabs" role="tablist">
                         <li class="nav-item">
                             <button class="nav-link active fw-600" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button" role="tab">
                                 <i class="fas fa-user-edit me-1"></i> Edit Profile

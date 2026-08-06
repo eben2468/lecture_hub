@@ -27,7 +27,7 @@ $__view->layout('layouts.app', [
     </div>
 
     <!-- Stats Row -->
-    <div class="stats-grid mb-4" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="stats-grid mb-4">
         <div class="stat-card stat-success">
             <div class="d-flex align-items-center justify-content-between">
                 <div>

@@ -209,6 +209,128 @@
             font-size: 0.9rem;
             color: #64748B;
         }
+
+        /* Mobile Hamburger & Drawer Styles */
+        .navbar-toggler-custom {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            transition: opacity 0.2s ease;
+        }
+        .navbar-toggler-custom:hover {
+            opacity: 0.8;
+        }
+
+        .mobile-drawer {
+            position: fixed;
+            top: 0;
+            right: -300px;
+            width: 300px;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 1100;
+            box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-left: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .mobile-drawer.open {
+            right: 0;
+        }
+
+        .drawer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1050;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            backdrop-filter: blur(4px);
+        }
+        .drawer-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .drawer-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .drawer-close {
+            background: none;
+            border: none;
+            color: #94A3B8;
+            font-size: 1.35rem;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+        .drawer-close:hover {
+            color: white;
+        }
+
+        .drawer-body {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .drawer-link {
+            color: #CBD5E1;
+            font-size: 1.1rem;
+            font-weight: 500;
+            text-decoration: none;
+            padding: 10px 14px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+        }
+        .drawer-link:hover, .drawer-link:active {
+            color: white;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .drawer-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.08);
+            margin: 8px 0;
+        }
+
+        /* Responsive Typography Clamps */
+        .hero-title {
+            font-size: clamp(2.2rem, 6vw, 3.25rem) !important;
+        }
+        .hero-gradient-title {
+            font-size: clamp(2.2rem, 6vw, 3.25rem) !important;
+        }
+        .hero-subtitle {
+            font-size: clamp(1rem, 3vw, 1.15rem) !important;
+        }
+
+        @media (max-width: 768px) {
+            .hero-header-section {
+                padding: 100px 0 60px !important;
+            }
+            .hero-header-section::before {
+                width: 100% !important;
+                height: 300px !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -225,19 +347,49 @@
                 </a>
 
                 <div class="d-flex align-items-center gap-2">
-                    <a href="<?= url('/features') ?>" class="nav-link hide-mobile">Features</a>
-                    <a href="<?= url('/about') ?>" class="nav-link hide-mobile">About</a>
-                    <a href="<?= url('/contact') ?>" class="nav-link hide-mobile">Contact</a>
-                    <a href="<?= url('/login') ?>" class="btn-slms btn-ghost" style="color: var(--gray-300);">
+                    <a href="<?= url('/features') ?>" class="nav-link d-none d-md-block">Features</a>
+                    <a href="<?= url('/about') ?>" class="nav-link d-none d-md-block">About</a>
+                    <a href="<?= url('/contact') ?>" class="nav-link d-none d-md-block">Contact</a>
+                    <a href="<?= url('/login') ?>" class="btn-slms btn-ghost d-none d-md-inline-flex" style="color: var(--gray-300);">
                         <i class="fas fa-sign-in-alt"></i> Login
                     </a>
-                    <a href="<?= url('/register') ?>" class="btn-slms btn-primary btn-sm">
+                    <a href="<?= url('/register') ?>" class="btn-slms btn-primary btn-sm d-none d-md-inline-flex">
                         Get Started
                     </a>
+                    <!-- Hamburger Icon for Mobile -->
+                    <button class="navbar-toggler-custom d-md-none" id="guest-drawer-toggle" aria-label="Toggle Navigation">
+                        <i class="fas fa-bars"></i>
+                    </button>
                 </div>
             </div>
         </div>
     </nav>
+
+    <!-- Mobile Navigation Drawer -->
+    <div class="mobile-drawer" id="mobile-drawer">
+        <div class="drawer-header">
+            <a href="<?= url('/') ?>" class="navbar-brand" style="color: white; font-weight: 800; text-decoration: none;">
+                <div class="brand-icon" style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.1rem; color: white;">N</div>
+                <span>Nadics LectureHub</span>
+            </a>
+            <button class="drawer-close" id="drawer-close" aria-label="Close Navigation">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="drawer-body">
+            <a href="<?= url('/features') ?>" class="drawer-link"><i class="fas fa-star me-2"></i> Features</a>
+            <a href="<?= url('/about') ?>" class="drawer-link"><i class="fas fa-info-circle me-2"></i> About</a>
+            <a href="<?= url('/contact') ?>" class="drawer-link"><i class="fas fa-envelope me-2"></i> Contact</a>
+            <div class="drawer-divider"></div>
+            <a href="<?= url('/login') ?>" class="btn-slms btn-ghost w-100 justify-content-center mb-2" style="color: white;">
+                <i class="fas fa-sign-in-alt me-2"></i> Login
+            </a>
+            <a href="<?= url('/register') ?>" class="btn-slms btn-primary w-100 justify-content-center">
+                <i class="fas fa-user-plus me-2"></i> Get Started
+            </a>
+        </div>
+    </div>
+    <div class="drawer-overlay" id="drawer-overlay"></div>
 
     <!-- Flash Messages -->
     <div id="flash-data" class="d-none"
@@ -318,5 +470,30 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="<?= asset('js/app.js') ?>"></script>
     <script src="<?= asset('js/dark-mode.js') ?>"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const toggleBtn = document.getElementById('guest-drawer-toggle');
+            const drawer = document.getElementById('mobile-drawer');
+            const overlay = document.getElementById('drawer-overlay');
+            const closeBtn = document.getElementById('drawer-close');
+
+            if (toggleBtn && drawer && overlay) {
+                const openDrawer = () => {
+                    drawer.classList.add('open');
+                    overlay.classList.add('show');
+                    document.body.style.overflow = 'hidden';
+                };
+                const closeDrawer = () => {
+                    drawer.classList.remove('open');
+                    overlay.classList.remove('show');
+                    document.body.style.overflow = '';
+                };
+
+                toggleBtn.addEventListener('click', openDrawer);
+                if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
+                overlay.addEventListener('click', closeDrawer);
+            }
+        });
+    </script>
 </body>
 </html>

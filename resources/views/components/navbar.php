@@ -27,6 +27,11 @@ $userInitial = strtoupper(substr($currentUser['first_name'] ?? 'U', 0, 1));
 
     <!-- Right Side -->
     <div class="navbar-right">
+        <!-- Mobile Search Toggle -->
+        <button class="navbar-icon-btn d-md-none" id="mobile-search-toggle" aria-label="Toggle Search" title="Toggle Search">
+            <i class="fas fa-search"></i>
+        </button>
+
         <!-- Dark Mode Toggle -->
         <button class="navbar-icon-btn" data-theme-toggle aria-label="Toggle Dark Mode" title="Toggle Theme">
             <i class="fas fa-moon"></i>
@@ -133,7 +138,37 @@ $userInitial = strtoupper(substr($currentUser['first_name'] ?? 'U', 0, 1));
     </div>
 </header>
 
+<!-- Mobile Search Bar Container (Hidden by default, slides down) -->
+<div class="mobile-search-bar d-md-none" id="mobile-search-bar-container">
+    <div class="p-2 border-bottom" style="background: var(--bg-navbar);">
+        <div class="position-relative">
+            <i class="fas fa-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+            <input type="text" class="form-control-slms w-100" placeholder="Search lectures, courses..." id="mobile-global-search" style="padding-left: 40px; height: 42px; border-radius: 20px;">
+        </div>
+    </div>
+</div>
+
 <style>
+.mobile-search-bar {
+    position: fixed;
+    top: var(--navbar-height);
+    left: 0;
+    right: 0;
+    background: var(--bg-navbar);
+    z-index: 999;
+    display: none;
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: var(--shadow-md);
+    animation: slideDown 0.2s ease-out;
+}
+.mobile-search-bar.show {
+    display: block !important;
+}
+@keyframes slideDown {
+    from { transform: translateY(-10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
 /* ============================================================
    USER PROFILE DROPDOWN — Standalone (no Bootstrap dependency)
    ============================================================ */
@@ -274,7 +309,33 @@ $userInitial = strtoupper(substr($currentUser['first_name'] ?? 'U', 0, 1));
         });
     }
 
-    // === Click outside to close both ===
+    // === Mobile Search Toggle ===
+    const searchToggle = document.getElementById('mobile-search-toggle');
+    const searchBar = document.getElementById('mobile-search-bar-container');
+    if (searchToggle && searchBar) {
+        searchToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            searchBar.classList.toggle('show');
+            if (searchBar.classList.contains('show')) {
+                const input = document.getElementById('mobile-global-search');
+                if (input) input.focus();
+            }
+        });
+        
+        searchBar.addEventListener('click', (e) => e.stopPropagation());
+    }
+
+    // Mirror input from mobile search to desktop search to trigger core search events
+    const mobileSearchInput = document.getElementById('mobile-global-search');
+    const desktopSearchInput = document.getElementById('global-search');
+    if (mobileSearchInput && desktopSearchInput) {
+        mobileSearchInput.addEventListener('input', (e) => {
+            desktopSearchInput.value = e.target.value;
+            desktopSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    }
+
+    // === Click outside to close all ===
     document.addEventListener('click', function(e) {
         if (userMenu && !userToggle.contains(e.target)) {
             userMenu.classList.remove('show');
@@ -282,6 +343,9 @@ $userInitial = strtoupper(substr($currentUser['first_name'] ?? 'U', 0, 1));
         }
         if (notifDropdown && !notifBtn.contains(e.target) && !notifDropdown.contains(e.target)) {
             notifDropdown.classList.remove('show');
+        }
+        if (searchBar && !searchToggle.contains(e.target) && !searchBar.contains(e.target)) {
+            searchBar.classList.remove('show');
         }
     });
 })();

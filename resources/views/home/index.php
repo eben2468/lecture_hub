@@ -27,7 +27,7 @@ $__view->layout('layouts.guest', [
                     <span>Smart Lecture Management System for Universities</span>
                 </div>
 
-                <h1 class="animate-fadeInUp delay-200" style="font-size: 3.2rem; font-weight: 900; line-height: 1.15; color: white; margin-bottom: 20px;">
+                <h1 class="hero-title animate-fadeInUp delay-200" style="font-weight: 900; line-height: 1.15; color: white; margin-bottom: 20px;">
                     Every Student Hears.<br>
                     <span style="background: linear-gradient(90deg, #38BDF8, #818CF8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Every Lecture Lives.</span>
                 </h1>
@@ -48,16 +48,16 @@ $__view->layout('layouts.guest', [
                 <!-- Stats summary -->
                 <div class="row g-4 mt-4 pt-4 border-top animate-fadeInUp delay-500" style="border-color: rgba(255, 255, 255, 0.1) !important;">
                     <div class="col-4">
-                        <div style="font-size: 1.8rem; font-weight: 800; color: white;"><span class="stat-count" data-target="500">0</span>K+</div>
-                        <div style="font-size: 12px; color: #94A3B8;">Students Supported</div>
+                        <div style="font-size: clamp(1.3rem, 4vw, 1.8rem); font-weight: 800; color: white;"><span class="stat-count" data-target="500">0</span>K+</div>
+                        <div style="font-size: clamp(10px, 2.5vw, 12px); color: #94A3B8;">Students Supported</div>
                     </div>
                     <div class="col-4">
-                        <div style="font-size: 1.8rem; font-weight: 800; color: white;"><span class="stat-count" data-target="99.9" data-decimals="1">0</span>%</div>
-                        <div style="font-size: 12px; color: #94A3B8;">Uptime SLA</div>
+                        <div style="font-size: clamp(1.3rem, 4vw, 1.8rem); font-weight: 800; color: white;"><span class="stat-count" data-target="99.9" data-decimals="1">0</span>%</div>
+                        <div style="font-size: clamp(10px, 2.5vw, 12px); color: #94A3B8;">Uptime SLA</div>
                     </div>
                     <div class="col-4">
-                        <div style="font-size: 1.8rem; font-weight: 800; color: white;">&lt; <span class="stat-count" data-target="50" data-start="150">150</span>ms</div>
-                        <div style="font-size: 12px; color: #94A3B8;">Audio Latency</div>
+                        <div style="font-size: clamp(1.3rem, 4vw, 1.8rem); font-weight: 800; color: white;">&lt; <span class="stat-count" data-target="50" data-start="150">150</span>ms</div>
+                        <div style="font-size: clamp(10px, 2.5vw, 12px); color: #94A3B8;">Audio Latency</div>
                     </div>
                 </div>
             </div>

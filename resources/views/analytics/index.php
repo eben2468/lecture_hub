@@ -68,7 +68,7 @@ $__view->layout('layouts.app', [
     </div>
 
     <!-- Recent Lectures Table -->
-    <div class="activity-grid" style="grid-template-columns: 2fr 1fr;">
+    <div class="activity-grid">
         <div class="slms-card">
             <div class="card-header">
                 <h5 class="m-0 fw-700"><i class="fas fa-chart-bar text-secondary me-2"></i> Recent Lecture Activity</h5>
