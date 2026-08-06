@@ -31,8 +31,8 @@ class TimetableController extends Controller
                 'courses.credit_unit',
                 'users.first_name as lecturer_first_name',
                 'users.last_name as lecturer_last_name',
-                'lecture_halls.name as hall_name',
-                'lecture_halls.building as hall_building',
+                'lecture_halls.building_name as hall_name',
+                'lecture_halls.hall_number as hall_building',
             ])
             ->orderBy('lectures.scheduled_start', 'ASC');
 

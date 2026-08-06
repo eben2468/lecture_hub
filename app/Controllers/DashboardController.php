@@ -191,7 +191,7 @@ class DashboardController extends Controller
                     'lectures.*',
                     'courses.code as course_code',
                     'courses.title as course_title',
-                    'lecture_halls.name as hall_name',
+                    'lecture_halls.building_name as hall_name',
                 ])
                 ->orderBy('scheduled_start', 'ASC')
                 ->get();
