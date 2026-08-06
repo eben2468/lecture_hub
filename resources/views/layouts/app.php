@@ -109,5 +109,8 @@
     <?php if (isset($extra_js)): ?>
         <?= $extra_js ?>
     <?php endif; ?>
+
+    <!-- Page-specific JS Section (loaded AFTER app.js so SLMS is available) -->
+    <?= $__view->yield('extra_js') ?>
 </body>
 </html>

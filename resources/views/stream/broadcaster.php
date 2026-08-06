@@ -192,6 +192,9 @@ $__view->layout('layouts.app', [
     }
 </style>
 
+<?php $__view->endSection(); ?>
+
+<?php $__view->section('extra_js'); ?>
 <script src="<?= url('/assets/js/stream.js') ?>"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {

@@ -1,6 +1,6 @@
 /**
  * ============================================================
- * Nadics LectureHub — Live Stream & Audio Engine JavaScript
+ * Nadics LectureHub â€” Live Stream & Audio Engine JavaScript
  * ============================================================
  * Enhanced with:
  * - External microphone/audio device enumeration & switching
@@ -10,13 +10,13 @@
  * - Live input level meter
  * - Live bitrate & latency telemetry
  * - iOS/Safari full compatibility fixes:
- *     • AudioContext resume on user gesture
- *     • canvas.captureStream() polyfill (not supported on Safari)
- *     • ctx.roundRect() polyfill (not supported on Safari < 15.4)
- *     • MediaRecorder MIME type fallback for Safari (audio/mp4)
- *     • video.play() promise handling for iOS autoplay policy
- *     • Device enumeration graceful degradation on iOS
- *     • webkitAudioContext support
+ *     â€¢ AudioContext resume on user gesture
+ *     â€¢ canvas.captureStream() polyfill (not supported on Safari)
+ *     â€¢ ctx.roundRect() polyfill (not supported on Safari < 15.4)
+ *     â€¢ MediaRecorder MIME type fallback for Safari (audio/mp4)
+ *     â€¢ video.play() promise handling for iOS autoplay policy
+ *     â€¢ Device enumeration graceful degradation on iOS
+ *     â€¢ webkitAudioContext support
  * ============================================================
  */
 
@@ -47,12 +47,34 @@ const SLMSStream = (function() {
     let micLevelRAF       = null;
     let selectedDeviceId  = '';
 
-    // ── iOS / Safari detection ────────────────────────────────
+    // â”€â”€ iOS / Safari detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
     const isAppleDevice = isIOS || isSafari;
 
-    // ── roundRect polyfill for Safari < 15.4 ─────────────────
+    // â”€â”€ Safe toast: works even if SLMS isn't loaded yet â”€â”€â”€â”€â”€â”€
+    function safeToast(message, type = 'info') {
+        try {
+            if (typeof SLMS !== 'undefined' && typeof SLMS.toast === 'function') {
+                safeToast(message, type);
+            } else {
+                // Fallback: create a simple inline notification
+                const existing = document.getElementById('stream-fallback-toast');
+                if (existing) existing.remove();
+                const el = document.createElement('div');
+                el.id = 'stream-fallback-toast';
+                el.style.cssText = `position:fixed;top:20px;right:20px;z-index:99999;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;font-weight:600;max-width:320px;box-shadow:0 4px 20px rgba(0,0,0,0.3);background:${ type==='error'?'#ef4444':type==='success'?'#10b981':'#3b82f6' };`;
+                el.textContent = message;
+                document.body.appendChild(el);
+                setTimeout(() => el.remove(), 5000);
+            }
+        } catch(e) {
+            // Last resort
+            console.warn('[SLMSStream]', type.toUpperCase(), message);
+        }
+    }
+
+    // â”€â”€ roundRect polyfill for Safari < 15.4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     function safeRoundRect(ctx, x, y, w, h, r) {
         if (typeof ctx.roundRect === 'function') {
             ctx.roundRect(x, y, w, h, typeof r === 'number' ? r : (Array.isArray(r) ? r : [r]));
@@ -73,7 +95,7 @@ const SLMSStream = (function() {
     }
 
     /**
-     * Resume AudioContext — required on iOS/Safari after user gesture
+     * Resume AudioContext â€” required on iOS/Safari after user gesture
      */
     async function resumeAudioContext(ctx) {
         if (ctx && ctx.state === 'suspended') {
@@ -149,14 +171,14 @@ const SLMSStream = (function() {
     }
 
     /**
-     * Safely play a video element — handles iOS autoplay policy
+     * Safely play a video element â€” handles iOS autoplay policy
      */
     function safeVideoPlay(videoEl) {
         if (!videoEl) return;
         const playPromise = videoEl.play();
         if (playPromise !== undefined) {
             playPromise.catch(err => {
-                // Autoplay blocked — add a tap-to-play overlay for iOS
+                // Autoplay blocked â€” add a tap-to-play overlay for iOS
                 console.warn('Autoplay blocked (iOS policy):', err.message);
                 addTapToPlayOverlay(videoEl);
             });
@@ -193,19 +215,30 @@ const SLMSStream = (function() {
         initBroadcaster(lectureId) {
             this.startChatPolling(lectureId);
             this.drawIdleVisualizer('audioVisualizer');
-            this.enumerateAudioDevices();
 
-            // iOS: show warning if not HTTPS
+            // iOS: Do NOT call enumerateAudioDevices on page load.
+            // Calling getUserMedia without a user gesture on iOS WebKit
+            // marks the origin as "interrupted" and silently blocks all
+            // subsequent getUserMedia calls â€” even from button clicks.
+            // We enumerate only when the user taps Start Broadcast.
+            if (!isAppleDevice) {
+                this.enumerateAudioDevices();
+            } else {
+                const selector = document.getElementById('micSelector');
+                if (selector) selector.innerHTML = '<option value="">Default Microphone (iOS)</option>';
+            }
+
+            // iOS: show HTTPS warning if needed
             if (isIOS && location.protocol !== 'https:' && location.hostname !== 'localhost') {
                 const warn = document.createElement('div');
                 warn.style.cssText = 'background:#7c2d12;color:#fed7aa;padding:10px 16px;border-radius:8px;margin-bottom:16px;font-size:14px;';
-                warn.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i><strong>iOS Notice:</strong> Live broadcasting on iOS requires an HTTPS connection. Microphone access may be restricted over HTTP.';
+                warn.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i><strong>iOS Notice:</strong> Live broadcasting on iOS requires an HTTPS connection.';
                 const header = document.querySelector('.page-header');
                 if (header && header.parentNode) header.parentNode.insertBefore(warn, header.nextSibling);
             }
 
-            // Re-enumerate when devices change
-            if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+            // Re-enumerate when devices change (non-iOS)
+            if (!isAppleDevice && navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
                 navigator.mediaDevices.addEventListener('devicechange', () => {
                     this.enumerateAudioDevices();
                 });
@@ -253,7 +286,7 @@ const SLMSStream = (function() {
                 audioInputs.forEach((device, index) => {
                     const option = document.createElement('option');
                     option.value = device.deviceId;
-                    // iOS often returns empty labels — use a fallback
+                    // iOS often returns empty labels â€” use a fallback
                     option.textContent = device.label || `Microphone ${index + 1}`;
                     if (index === 0) {
                         option.selected = true;
@@ -304,9 +337,9 @@ const SLMSStream = (function() {
                     }
                     this.startMediaRecorder();
 
-                    SLMS.toast('Switched to: ' + (newTrack.label || 'New microphone'), 'success');
+                    safeToast('Switched to: ' + (newTrack.label || 'New microphone'), 'success');
                 } catch (err) {
-                    SLMS.toast('Could not switch microphone: ' + err.message, 'error');
+                    safeToast('Could not switch microphone: ' + err.message, 'error');
                 }
             }
         },
@@ -381,7 +414,13 @@ const SLMSStream = (function() {
          */
         async startBroadcasting(lectureId) {
             try {
-                // iOS: Audio constraints must be simple — advanced constraints
+                // iOS: Enumerate devices HERE (inside user gesture) rather than on page load.
+                // getUserMedia must be called from within a user gesture on iOS WebKit.
+                if (isAppleDevice) {
+                    await this.enumerateAudioDevices();
+                }
+
+                // iOS: Audio constraints must be simple â€” advanced constraints
                 // like sampleRate/channelCount are often ignored or cause errors
                 const audioConstraints = isAppleDevice
                     ? {
@@ -493,9 +532,9 @@ const SLMSStream = (function() {
                     </span>`;
                 }
 
-                SLMS.toast('Live audio & video broadcast started!', 'success');
+                safeToast('Live audio & video broadcast started!', 'success');
             } catch (err) {
-                SLMS.toast('Could not access microphone: ' + err.message, 'error');
+                safeToast('Could not access microphone: ' + err.message, 'error');
             }
         },
 
@@ -609,7 +648,7 @@ const SLMSStream = (function() {
                 console.warn('Failed to stop stream on server:', err);
             }
 
-            SLMS.toast('Live broadcast ended.', 'info');
+            safeToast('Live broadcast ended.', 'info');
         },
 
         /**
@@ -654,9 +693,9 @@ const SLMSStream = (function() {
 
                 xhr.onload = () => {
                     if (xhr.status === 200) {
-                        SLMS.toast('Recording uploaded successfully! View in Recordings page.', 'success');
+                        safeToast('Recording uploaded successfully! View in Recordings page.', 'success');
                     } else {
-                        SLMS.toast('Recording upload failed.', 'error');
+                        safeToast('Recording upload failed.', 'error');
                     }
                     if (progressContainer) {
                         setTimeout(() => progressContainer.classList.add('d-none'), 3000);
@@ -664,14 +703,14 @@ const SLMSStream = (function() {
                 };
 
                 xhr.onerror = () => {
-                    SLMS.toast('Recording upload failed — network error.', 'error');
+                    safeToast('Recording upload failed â€” network error.', 'error');
                     if (progressContainer) progressContainer.classList.add('d-none');
                 };
 
                 xhr.send(formData);
             } catch (err) {
                 console.error('Upload error:', err);
-                SLMS.toast('Recording upload failed.', 'error');
+                safeToast('Recording upload failed.', 'error');
             }
 
             recordedChunks = [];
@@ -688,12 +727,12 @@ const SLMSStream = (function() {
                 });
                 const btn = document.getElementById('btnMuteMic');
                 btn.innerHTML = isMuted ? '<i class="fas fa-microphone-slash me-1"></i> Unmute Mic' : '<i class="fas fa-microphone me-1"></i> Mute Mic';
-                SLMS.toast(isMuted ? 'Microphone muted' : 'Microphone unmuted', 'info');
+                safeToast(isMuted ? 'Microphone muted' : 'Microphone unmuted', 'info');
             }
         },
 
         /**
-         * Toggle listener stream — iOS: AudioContext must be resumed in user gesture
+         * Toggle listener stream â€” iOS: AudioContext must be resumed in user gesture
          */
         toggleListen(lectureId) {
             isListening = !isListening;
@@ -711,7 +750,7 @@ const SLMSStream = (function() {
                 try {
                     const AudioCtx = window.AudioContext || window.webkitAudioContext;
                     listenerAudioCtx = new AudioCtx();
-                    // Resume immediately — iOS suspends on creation
+                    // Resume immediately â€” iOS suspends on creation
                     resumeAudioContext(listenerAudioCtx).then(() => {
                         try {
                             oscillator = listenerAudioCtx.createOscillator();
@@ -738,7 +777,7 @@ const SLMSStream = (function() {
                 if (videoEl) {
                     videoEl.style.display = 'block';
                     if (placeholderEl) placeholderEl.style.display = 'none';
-                    // iOS: canvas.captureStream() is not supported — use setInterval renderer instead
+                    // iOS: canvas.captureStream() is not supported â€” use setInterval renderer instead
                     this.startLiveVideoPresentation(videoEl);
                 }
                 if (liveOverlay) liveOverlay.classList.remove('d-none');
@@ -754,7 +793,7 @@ const SLMSStream = (function() {
                     </span>`;
                 }
 
-                SLMS.toast('Connected to live audio & video stream', 'success');
+                safeToast('Connected to live audio & video stream', 'success');
             } else {
                 // Teardown audio
                 if (oscillator) {
@@ -799,7 +838,7 @@ const SLMSStream = (function() {
                     </span>`;
                 }
 
-                SLMS.toast('Disconnected from live feed', 'info');
+                safeToast('Disconnected from live feed', 'info');
             }
         },
 
@@ -922,7 +961,7 @@ const SLMSStream = (function() {
         },
 
         /**
-         * Canvas Audio Visualizer — idle state
+         * Canvas Audio Visualizer â€” idle state
          */
         drawIdleVisualizer(canvasId) {
             const canvas = document.getElementById(canvasId);
@@ -934,7 +973,7 @@ const SLMSStream = (function() {
         },
 
         /**
-         * Broadcaster audio visualizer — driven by real analyser data
+         * Broadcaster audio visualizer â€” driven by real analyser data
          */
         animateVisualizer(canvasId) {
             const canvas = document.getElementById(canvasId);
@@ -1015,7 +1054,7 @@ const SLMSStream = (function() {
                 if (btn) {
                     btn.innerHTML = isVideoOn ? '<i class="fas fa-video-slash me-1"></i> Hide Video' : '<i class="fas fa-video me-1"></i> Enable Video';
                 }
-                SLMS.toast(isVideoOn ? 'Camera stream enabled' : 'Camera stream disabled', 'info');
+                safeToast(isVideoOn ? 'Camera stream enabled' : 'Camera stream disabled', 'info');
             } else {
                 navigator.mediaDevices.getUserMedia({ video: true }).then(vStream => {
                     const newTrack = vStream.getVideoTracks()[0];
@@ -1033,26 +1072,26 @@ const SLMSStream = (function() {
 
                     const btn = document.getElementById('btnToggleVideo');
                     if (btn) btn.innerHTML = '<i class="fas fa-video-slash me-1"></i> Hide Video';
-                    SLMS.toast('Webcam feed loaded successfully!', 'success');
+                    safeToast('Webcam feed loaded successfully!', 'success');
                 }).catch(err => {
-                    SLMS.toast('Camera not available: ' + err.message, 'error');
+                    safeToast('Camera not available: ' + err.message, 'error');
                 });
             }
         },
 
         /**
-         * Toggle screen sharing — disabled on iOS (not supported)
+         * Toggle screen sharing â€” disabled on iOS (not supported)
          */
         async toggleScreenShare(lectureId) {
             if (!isBroadcasting) return;
 
             if (isIOS) {
-                SLMS.toast('Screen sharing is not supported on iOS devices.', 'error');
+                safeToast('Screen sharing is not supported on iOS devices.', 'error');
                 return;
             }
 
             if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-                SLMS.toast('Screen sharing is not supported in this browser.', 'error');
+                safeToast('Screen sharing is not supported in this browser.', 'error');
                 return;
             }
 
@@ -1076,9 +1115,9 @@ const SLMSStream = (function() {
                     screenStream.getVideoTracks()[0].onended = () => {
                         this.stopScreenSharing();
                     };
-                    SLMS.toast('Screen share active', 'success');
+                    safeToast('Screen share active', 'success');
                 } catch (err) {
-                    SLMS.toast('Screen share failed: ' + err.message, 'error');
+                    safeToast('Screen share failed: ' + err.message, 'error');
                 }
             } else {
                 this.stopScreenSharing();
@@ -1112,7 +1151,7 @@ const SLMSStream = (function() {
                     if (placeholderEl) placeholderEl.style.display = 'flex';
                 }
             }
-            SLMS.toast('Screen share stopped', 'info');
+            safeToast('Screen share stopped', 'info');
         },
 
         /**
@@ -1127,7 +1166,7 @@ const SLMSStream = (function() {
             // Instead, we draw directly onto a visible canvas placed over the video area
             const parent = videoEl.parentElement;
 
-            // Hide the video element — we use canvas directly
+            // Hide the video element â€” we use canvas directly
             videoEl.style.display = 'none';
 
             // Reuse or create a canvas overlay
@@ -1198,20 +1237,20 @@ const SLMSStream = (function() {
                 ctx.fillStyle = headerGrad;
                 ctx.fillRect(0, 0, W, 56);
 
-                // LIVE badge — using safeRoundRect (iOS roundRect polyfill)
+                // LIVE badge â€” using safeRoundRect (iOS roundRect polyfill)
                 ctx.fillStyle = '#ef4444';
                 safeRoundRect(ctx, 16, 14, 80, 28, 6);
                 ctx.fill();
                 ctx.fillStyle = '#ffffff';
                 ctx.font = 'bold 13px Arial, sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('● LIVE', 56, 33);
+                ctx.fillText('â— LIVE', 56, 33);
                 ctx.textAlign = 'left';
 
                 // Title
                 ctx.fillStyle = '#e2e8f0';
                 ctx.font = 'bold 16px Arial, sans-serif';
-                ctx.fillText('Nadics LectureHub — Live Classroom Broadcast', 112, 35);
+                ctx.fillText('Nadics LectureHub â€” Live Classroom Broadcast', 112, 35);
 
                 // Timestamp
                 const now = new Date();
@@ -1266,7 +1305,7 @@ const SLMSStream = (function() {
                 ctx.fillText('Lecturer Camera Feed', centerX, avatarY + avatarH - 55);
                 ctx.fillStyle = '#64748b';
                 ctx.font = '12px Arial, sans-serif';
-                ctx.fillText('Live HD Stream • 720p', centerX, avatarY + avatarH - 35);
+                ctx.fillText('Live HD Stream â€¢ 720p', centerX, avatarY + avatarH - 35);
                 ctx.textAlign = 'left';
 
                 const waveY = avatarY + avatarH - 18;
@@ -1390,7 +1429,7 @@ const SLMSStream = (function() {
                     { label: 'Audio Codec', value: 'Opus 128kbps', color: '#3b82f6' },
                     { label: 'Latency', value: '< ' + (35 + Math.floor(Math.sin(frame * 0.01) * 10)) + ' ms', color: '#f59e0b' },
                     { label: 'FPS', value: '30 fps', color: '#8b5cf6' },
-                    { label: 'Connection', value: '● Stable', color: '#10b981' },
+                    { label: 'Connection', value: 'â— Stable', color: '#10b981' },
                     { label: 'Duration', value: formatTime(Math.floor(frame / 30)), color: '#94a3b8' },
                 ];
 
@@ -1407,10 +1446,11 @@ const SLMSStream = (function() {
                 });
             };
 
-            // Use setInterval (not canvas.captureStream) — works on iOS/Safari
+            // Use setInterval (not canvas.captureStream) â€” works on iOS/Safari
             listenerCanvasInterval = setInterval(drawFrame, 33);
-            // listenerStream is null on iOS — no MediaStream needed
+            // listenerStream is null on iOS â€” no MediaStream needed
             listenerStream = null;
         }
     };
 })();
+
