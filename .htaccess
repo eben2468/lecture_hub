@@ -1,21 +1,21 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Allow cross-origin requests for assets (needed on some hosts)
-    # RewriteBase /
-
     # ── Step 1: Serve real files and directories directly ────────────────────
     RewriteCond %{REQUEST_FILENAME} -f [OR]
     RewriteCond %{REQUEST_FILENAME} -d
     RewriteRule ^ - [L]
 
-    # ── Step 2: If the URI doesn't already include /public/, forward to it ───
-    # This handles: localhost/lecture_hub/features → public/features
+    # ── Step 2: Internally forward requests to the public/ sub-folder ────────
+    # Any URL that doesn't already target /public/ is rewritten internally.
+    # Apache checks the rewritten path again from Step 1, which means
+    # static assets in public/assets/ and public/js/ are served directly.
     RewriteCond %{REQUEST_URI} !/public/
     RewriteRule ^(.*)$ public/$1 [L]
 
-    # ── Step 3: Inside /public/, pass everything to the front controller ─────
-    # This handles: root-domain hosting (e.g. learning-hub.nadicssolution.com)
+    # ── Step 3: Route dynamic requests to the front controller ───────────────
+    # If the rewritten path inside /public/ doesn't map to a real file,
+    # hand it to index.php (the application front controller).
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^public/(.*)$ index.php [QSA,L]

@@ -1,17 +1,22 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # ── Serve real files and directories directly ─────────────────────────────
+    # ── Step 1: Serve real files and directories directly ─────────────────────
+    # (CSS, JS, images, uploads are served without going through PHP)
     RewriteCond %{REQUEST_FILENAME} -f [OR]
     RewriteCond %{REQUEST_FILENAME} -d
     RewriteRule ^ - [L]
 
-    # ── Route all other requests to the front controller ─────────────────────
-    # This is the primary rule used when the document root points to /public/
-    # (common on cPanel/shared hosting). All URLs go through index.php in the
-    # parent directory.
-    RewriteRule ^ ../index.php [QSA,L]
+    # ── Step 2: Route all other requests through the front controller ─────────
+    # This handles all application routes (login, register, dashboard, etc.)
+    RewriteRule ^ index.php [QSA,L]
 </IfModule>
 
 # ── Security: disable directory listing ──────────────────────────────────────
 Options -Indexes
+
+# ── Security: block access to sensitive files ─────────────────────────────────
+<FilesMatch "(^\.env|composer\.(json|lock)|\.gitkeep)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
