@@ -203,13 +203,10 @@ if (!function_exists('url')) {
     /**
      * Generate a full URL for the application.
      *
-     * Auto-detects the real server URL from HTTP request variables so the app
-     * works correctly on both localhost and any live/hosted server without
-     * needing to change APP_URL in .env.
-     *
      * Priority:
-     *  1. APP_URL when it is explicitly set to a non-localhost value (production override).
-     *  2. Auto-detected scheme + host + script directory from $_SERVER (HTTP requests).
+     *  1. APP_URL when it is explicitly set to a non-localhost value (recommended for production).
+     *  2. Auto-detected scheme + host from $_SERVER for HTTP requests.
+     *     — Handles SSL termination at proxy/load balancer (000webhost, cPanel, CloudFlare).
      *  3. APP_URL as a plain fallback (CLI / test runners).
      *
      * @param  string $path Path relative to application root
@@ -219,33 +216,49 @@ if (!function_exists('url')) {
     {
         $configured = rtrim(env('APP_URL', ''), '/');
 
-        // Determine whether APP_URL has been explicitly pointed at a real server.
+        // If APP_URL is set to a real production domain, use it as the authoritative base.
         $isLocalhostUrl = empty($configured)
             || str_contains($configured, 'localhost')
             || str_contains($configured, '127.0.0.1');
 
         if (!$isLocalhostUrl) {
-            // ── Production override ──────────────────────────────────────────
-            // APP_URL is set to a real domain (e.g. https://learning-hub.nadicssolution.com).
-            // Use it directly — no basePath manipulation needed for root domains.
+            // ── Production override (highest priority) ───────────────────────
+            // Set APP_URL=https://yourdomain.com in your live .env to guarantee
+            // correct URLs regardless of server/proxy configuration.
             $baseUrl = $configured;
-        } elseif (isset($_SERVER['HTTP_HOST'])) {
-            // ── Auto-detect from live HTTP request ───────────────────────────
-            // Works for localhost/subfolder AND root-domain hosting without any
-            // .env change.
-            $scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $host    = $_SERVER['HTTP_HOST'];
 
-            // SCRIPT_NAME is the path to index.php from the server root.
-            // Strip the filename to get the base directory.
-            $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/index.php'), '/\\');
+        } elseif (isset($_SERVER['HTTP_HOST'])) {
+            // ── Auto-detect from HTTP request ────────────────────────────────
+            // Many shared hosts (000webhost, cPanel) terminate SSL at a reverse
+            // proxy/load balancer, so $_SERVER['HTTPS'] is empty even on HTTPS
+            // pages. We must check proxy-forwarded headers too.
+            $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                || (isset($_SERVER['HTTP_X_FORWARDED_PROTO'])  && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
+                || (isset($_SERVER['HTTP_X_FORWARDED_SSL'])    && strtolower($_SERVER['HTTP_X_FORWARDED_SSL'])   === 'on')
+                || (isset($_SERVER['REQUEST_SCHEME'])          && $_SERVER['REQUEST_SCHEME'] === 'https')
+                || (!empty($_SERVER['SERVER_PORT'])            && (int) $_SERVER['SERVER_PORT'] === 443);
+
+            $scheme = $isHttps ? 'https' : 'http';
+            $host   = $_SERVER['HTTP_HOST'];
+
+            // Derive the base path from SCRIPT_NAME.
+            // If the entry point is public/index.php and doc root = /public/,
+            // SCRIPT_NAME = /index.php → scriptDir = '' (root) ✓
+            // If doc root = project root, SCRIPT_NAME = /index.php → scriptDir = '' ✓
+            $scriptName = $_SERVER['SCRIPT_NAME'] ?? '/index.php';
+            $scriptDir  = rtrim(dirname($scriptName), '/\\');
+
+            // Guard: if some hosting quirk includes '/public' in the script dir,
+            // strip it — BASE_PATH in public/index.php already resolves to the
+            // project root, so asset paths must not include /public in the URL.
+            $scriptDir = rtrim(preg_replace('#/public$#i', '', $scriptDir), '/');
 
             $baseUrl = rtrim($scheme . '://' . $host . $scriptDir, '/');
+
         } else {
             // ── CLI / test fallback ──────────────────────────────────────────
             $baseUrl = $configured ?: 'http://localhost';
 
-            // Apply basePath adjustment only in CLI context where $_SERVER is absent.
             $basePath = \Core\Request::getInstance()->getBasePath();
             if ($basePath) {
                 $decodedBaseUrl = rawurldecode($baseUrl);
