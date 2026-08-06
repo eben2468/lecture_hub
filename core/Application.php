@@ -277,7 +277,15 @@ class Application
 
         foreach ($directories as $dir) {
             if (!is_dir($dir)) {
-                mkdir($dir, 0755, true);
+                // Suppress permission errors on shared hosting — directories should
+                // already exist with correct permissions set via cPanel/FTP/SSH.
+                @mkdir($dir, 0755, true);
+            }
+
+            // Protect directory with .htaccess if it doesn't already have one
+            $htaccess = $dir . '/.htaccess';
+            if (is_dir($dir) && !file_exists($htaccess)) {
+                @file_put_contents($htaccess, "Options -Indexes\nDeny from all\n");
             }
         }
     }
