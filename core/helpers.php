@@ -274,14 +274,48 @@ if (!function_exists('url')) {
 
 if (!function_exists('asset')) {
     /**
-     * Generate a URL to a public asset (CSS, JS, images).
+     * Generate a direct, rewrite-free URL to a public asset (CSS, JS, images).
      *
-     * @param  string $path Asset path relative to public/assets/
+     * Auto-detects whether /public/ needs to be included in the URL based on
+     * which entry point is running:
+     *   - public/index.php  → doc root is /public/ → URL: /assets/...
+     *   - root index.php    → doc root is project root → URL: /public/assets/...
+     *
+     * This generates a direct filesystem URL that does NOT rely on any
+     * .htaccess rewrite rules, ensuring assets load on all hosting setups.
+     *
+     * Set ASSET_URL in .env to override auto-detection completely.
+     *
+     * @param  string $path Asset path relative to public/assets/ (e.g. 'css/app.css')
      * @return string       Full asset URL
      */
     function asset(string $path): string
     {
-        return url('assets/' . ltrim($path, '/'));
+        $path = ltrim($path, '/');
+
+        // ── Explicit override ────────────────────────────────────────────────
+        // Set ASSET_URL=https://domain.com in .env to skip auto-detection.
+        $explicitAssetUrl = rtrim(env('ASSET_URL', ''), '/');
+        if (!empty($explicitAssetUrl)) {
+            return $explicitAssetUrl . '/assets/' . $path;
+        }
+
+        // ── Auto-detect the correct asset prefix ─────────────────────────────
+        // Normalize the script path (Windows backslashes → forward slashes).
+        $scriptFile = str_replace('\\', '/', $_SERVER['SCRIPT_FILENAME'] ?? '');
+
+        if (str_ends_with($scriptFile, '/public/index.php')) {
+            // Running via public/index.php → document root IS /public/
+            // Assets are directly at /assets/ — no /public/ prefix needed.
+            $baseUrl = rtrim(url(''), '/');
+            return $baseUrl . '/assets/' . $path;
+        }
+
+        // Running via root index.php → document root is the project root.
+        // Assets are inside /public/assets/ — must include /public/ in URL
+        // so the file is served directly without any .htaccess rewriting.
+        $baseUrl = rtrim(url(''), '/');
+        return $baseUrl . '/public/assets/' . $path;
     }
 }
 
