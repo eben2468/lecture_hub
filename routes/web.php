@@ -66,7 +66,7 @@ $router->group(['middleware' => [AuthMiddleware::class, CsrfMiddleware::class]],
 
     /** Dashboard */
     $router->get('/dashboard', 'DashboardController@index')->name('dashboard');
-    $router->get('/timetable', 'DashboardController@timetable')->name('timetable');
+    $router->get('/timetable', 'TimetableController@index')->name('timetable');
 
     /** Profile */
     $router->get('/profile', 'ProfileController@show')->name('profile');
@@ -211,7 +211,7 @@ $router->group(['middleware' => [AuthMiddleware::class, CsrfMiddleware::class]],
     $router->post('/admin/students/{id}/toggle', 'Admin\StudentController@toggleStatus')->name('admin.students.toggle');
 
     $router->get('/admin/users', 'Admin\UserController@index')->name('admin.users');
-    $router->get('/timetable', 'TimetableController@index')->name('timetable');
+
     $router->get('/admin/audit-logs', 'Admin\AuditLogController@index')->name('admin.audit-logs');
     $router->get('/admin/settings', 'Admin\SettingsController@index')->name('admin.settings');
     $router->post('/admin/settings', 'Admin\SettingsController@store')->name('admin.settings.store');
