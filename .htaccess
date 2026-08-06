@@ -1,21 +1,31 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # 1. If the request is for a real file in the root folder, serve it directly
-    RewriteCond %{REQUEST_FILENAME} -f
+    # Allow cross-origin requests for assets (needed on some hosts)
+    # RewriteBase /
+
+    # ── Step 1: Serve real files and directories directly ────────────────────
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
     RewriteRule ^ - [L]
 
-    # 2. If the request does not contain /public/ and is not a real file, rewrite internally to public/
+    # ── Step 2: If the URI doesn't already include /public/, forward to it ───
+    # This handles: localhost/lecture_hub/features → public/features
     RewriteCond %{REQUEST_URI} !/public/
     RewriteRule ^(.*)$ public/$1 [L]
 
-    # 3. If the rewritten request inside public/ does not exist as a real file, rewrite to the root index.php
+    # ── Step 3: Inside /public/, pass everything to the front controller ─────
+    # This handles: root-domain hosting (e.g. learning-hub.nadicssolution.com)
     RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteRule ^public/(.*)$ index.php [L]
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^public/(.*)$ index.php [QSA,L]
 </IfModule>
 
-# Deny access to sensitive files
-<FilesMatch "^\.env|composer\.(json|lock)$">
+# ── Security: block direct access to sensitive files ─────────────────────────
+<FilesMatch "(^\.env|composer\.(json|lock)|\.gitkeep)$">
     Order Allow,Deny
     Deny from all
 </FilesMatch>
+
+# ── Security: disable directory listing ──────────────────────────────────────
+Options -Indexes

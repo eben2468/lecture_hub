@@ -203,22 +203,59 @@ if (!function_exists('url')) {
     /**
      * Generate a full URL for the application.
      *
+     * Auto-detects the real server URL from HTTP request variables so the app
+     * works correctly on both localhost and any live/hosted server without
+     * needing to change APP_URL in .env.
+     *
+     * Priority:
+     *  1. APP_URL when it is explicitly set to a non-localhost value (production override).
+     *  2. Auto-detected scheme + host + script directory from $_SERVER (HTTP requests).
+     *  3. APP_URL as a plain fallback (CLI / test runners).
+     *
      * @param  string $path Path relative to application root
      * @return string       Full URL
      */
     function url(string $path = ''): string
     {
-        $baseUrl  = rtrim(env('APP_URL', 'http://localhost'), '/');
-        $basePath = \Core\Request::getInstance()->getBasePath();
+        $configured = rtrim(env('APP_URL', ''), '/');
 
-        if ($basePath) {
-            $decodedBaseUrl = rawurldecode($baseUrl);
-            if (!str_ends_with($decodedBaseUrl, $basePath)) {
-                $baseUrl .= $basePath;
+        // Determine whether APP_URL has been explicitly pointed at a real server.
+        $isLocalhostUrl = empty($configured)
+            || str_contains($configured, 'localhost')
+            || str_contains($configured, '127.0.0.1');
+
+        if (!$isLocalhostUrl) {
+            // ── Production override ──────────────────────────────────────────
+            // APP_URL is set to a real domain (e.g. https://learning-hub.nadicssolution.com).
+            // Use it directly — no basePath manipulation needed for root domains.
+            $baseUrl = $configured;
+        } elseif (isset($_SERVER['HTTP_HOST'])) {
+            // ── Auto-detect from live HTTP request ───────────────────────────
+            // Works for localhost/subfolder AND root-domain hosting without any
+            // .env change.
+            $scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $host    = $_SERVER['HTTP_HOST'];
+
+            // SCRIPT_NAME is the path to index.php from the server root.
+            // Strip the filename to get the base directory.
+            $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/index.php'), '/\\');
+
+            $baseUrl = rtrim($scheme . '://' . $host . $scriptDir, '/');
+        } else {
+            // ── CLI / test fallback ──────────────────────────────────────────
+            $baseUrl = $configured ?: 'http://localhost';
+
+            // Apply basePath adjustment only in CLI context where $_SERVER is absent.
+            $basePath = \Core\Request::getInstance()->getBasePath();
+            if ($basePath) {
+                $decodedBaseUrl = rawurldecode($baseUrl);
+                if (!str_ends_with($decodedBaseUrl, $basePath)) {
+                    $baseUrl .= $basePath;
+                }
             }
         }
 
-        return $path ? $baseUrl . '/' . ltrim($path, '/') : $baseUrl;
+        return $path ? rtrim($baseUrl, '/') . '/' . ltrim($path, '/') : $baseUrl;
     }
 }
 

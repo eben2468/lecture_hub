@@ -1,0 +1,17 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # ── Serve real files and directories directly ─────────────────────────────
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # ── Route all other requests to the front controller ─────────────────────
+    # This is the primary rule used when the document root points to /public/
+    # (common on cPanel/shared hosting). All URLs go through index.php in the
+    # parent directory.
+    RewriteRule ^ ../index.php [QSA,L]
+</IfModule>
+
+# ── Security: disable directory listing ──────────────────────────────────────
+Options -Indexes
