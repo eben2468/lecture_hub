@@ -150,7 +150,7 @@ $__view->layout('layouts.app', [
 <?php $__view->endSection(); ?>
 
 <?php $__view->section('extra_js'); ?>
-<script src="<?= url('/assets/js/stream.js') ?>"></script>
+<script src="<?= asset('js/stream.js') ?>"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         SLMSStream.initListener(<?= $lecture['id'] ?>);
