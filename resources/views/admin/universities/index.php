@@ -76,7 +76,18 @@ $__view->layout('layouts.app', [
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <button class="btn-slms btn-sm btn-outline-slms"><i class="fas fa-edit"></i> Edit</button>
+                                    <button class="btn-slms btn-sm btn-outline-slms edit-univ-btn"
+                                            data-id="<?= e($univ['id']) ?>"
+                                            data-name="<?= e($univ['name']) ?>"
+                                            data-code="<?= e($univ['code']) ?>"
+                                            data-domain="<?= e($univ['domain'] ?: '') ?>"
+                                            data-city="<?= e($univ['city'] ?? '') ?>"
+                                            data-state="<?= e($univ['state'] ?? '') ?>"
+                                            data-status="<?= e($univ['status']) ?>"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#editUniversityModal">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </button>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -117,11 +128,15 @@ $__view->layout('layouts.app', [
                         </div>
                     </div>
                     <div class="row g-3 mb-3">
-                        <div class="col-md-6 form-group">
+                        <div class="col-md-4 form-group">
                             <label class="form-label" for="city">City / Campus</label>
-                            <input type="text" id="city" name="city" class="form-control-slms" placeholder="e.g. Akoka, Lagos">
+                            <input type="text" id="city" name="city" class="form-control-slms" placeholder="e.g. Akoka" required>
                         </div>
-                        <div class="col-md-6 form-group">
+                        <div class="col-md-4 form-group">
+                            <label class="form-label" for="state">State / Region</label>
+                            <input type="text" id="state" name="state" class="form-control-slms" placeholder="e.g. Lagos">
+                        </div>
+                        <div class="col-md-4 form-group">
                             <label class="form-label" for="status">Initial Status</label>
                             <select id="status" name="status" class="form-control-slms" required>
                                 <option value="active">Active</option>
@@ -139,4 +154,92 @@ $__view->layout('layouts.app', [
         </div>
     </div>
 </div>
+
+<!-- Edit University Modal -->
+<div class="modal fade" id="editUniversityModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:var(--radius-xl);">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-700">Edit University Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="">
+                <?= csrf_field() ?>
+                <div class="modal-body">
+                    <!-- Read-only info row -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6 form-group">
+                            <label class="form-label text-muted">Abbreviation Code</label>
+                            <input type="text" id="edit_code_display" class="form-control-slms bg-light text-muted" readonly disabled style="cursor: not-allowed;">
+                        </div>
+                        <div class="col-md-6 form-group">
+                            <label class="form-label text-muted">Domain Binding</label>
+                            <input type="text" id="edit_domain_display" class="form-control-slms bg-light text-muted" readonly disabled style="cursor: not-allowed;">
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label class="form-label" for="edit_name">University Full Name</label>
+                        <input type="text" id="edit_name" name="name" class="form-control-slms" required>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6 form-group">
+                            <label class="form-label" for="edit_city">City / Campus</label>
+                            <input type="text" id="edit_city" name="city" class="form-control-slms" placeholder="e.g. Akoka" required>
+                        </div>
+                        <div class="col-md-6 form-group">
+                            <label class="form-label" for="edit_state">State / Region</label>
+                            <input type="text" id="edit_state" name="state" class="form-control-slms" placeholder="e.g. Lagos">
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label class="form-label" for="edit_status">Institution Status</label>
+                        <select id="edit_status" name="status" class="form-control-slms" required>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="suspended">Suspended</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn-slms btn-ghost" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn-slms btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const editModal = document.getElementById('editUniversityModal');
+    if (editModal) {
+        editModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            
+            // Extract info from data-* attributes
+            const id = button.getAttribute('data-id');
+            const name = button.getAttribute('data-name');
+            const code = button.getAttribute('data-code');
+            const domain = button.getAttribute('data-domain');
+            const city = button.getAttribute('data-city');
+            const state = button.getAttribute('data-state');
+            const status = button.getAttribute('data-status');
+            
+            // Update form action and input values
+            const form = editModal.querySelector('form');
+            form.setAttribute('action', `<?= url('/admin/universities') ?>/${id}`);
+            
+            editModal.querySelector('#edit_name').value = name;
+            editModal.querySelector('#edit_code_display').value = code;
+            editModal.querySelector('#edit_domain_display').value = domain || 'N/A';
+            editModal.querySelector('#edit_city').value = city;
+            editModal.querySelector('#edit_state').value = state;
+            editModal.querySelector('#edit_status').value = status;
+        });
+    }
+});
+</script>
 <?php $__view->endSection(); ?>
