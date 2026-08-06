@@ -1,0 +1,161 @@
+/**
+ * ============================================================
+ * Nadics LectureHub — Authentication Pages Styles
+ * ============================================================
+ */
+
+.auth-wrapper {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #0F172A 0%, #1E3A5F 40%, #2563EB 100%);
+    padding: var(--space-4);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Animated background elements */
+.auth-wrapper::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -30%;
+    width: 800px;
+    height: 800px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, transparent 70%);
+    animation: pulse 8s ease-in-out infinite;
+}
+
+.auth-wrapper::after {
+    content: '';
+    position: absolute;
+    bottom: -40%;
+    left: -20%;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(37, 99, 235, 0.2) 0%, transparent 70%);
+    animation: pulse 6s ease-in-out infinite reverse;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 460px;
+    background: rgba(255, 255, 255, 0.97);
+    border-radius: var(--radius-2xl);
+    padding: var(--space-10);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+    position: relative;
+    z-index: 1;
+    animation: scaleIn 0.4s ease-out;
+    backdrop-filter: blur(20px);
+}
+
+.auth-card .auth-logo {
+    text-align: center;
+    margin-bottom: var(--space-8);
+}
+
+.auth-card .auth-logo .logo-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto var(--space-4);
+    border-radius: var(--radius-xl);
+    background: linear-gradient(135deg, var(--secondary), var(--accent));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--text-2xl);
+    font-weight: 900;
+    color: white;
+    box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3);
+}
+
+.auth-card .auth-logo h2 {
+    font-size: var(--text-xl);
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: var(--space-1);
+}
+
+.auth-card .auth-logo p {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.auth-card .auth-footer {
+    text-align: center;
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--border-color);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+}
+
+.auth-card .auth-footer a {
+    color: var(--secondary);
+    font-weight: 600;
+}
+
+.auth-card .auth-footer a:hover {
+    color: var(--secondary-dark);
+}
+
+.auth-card .form-check {
+    margin-bottom: var(--space-5);
+}
+
+.auth-card .forgot-link {
+    font-size: var(--text-sm);
+    color: var(--secondary);
+    font-weight: 500;
+}
+
+.auth-divider {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin: var(--space-6) 0;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+}
+
+.auth-divider::before,
+.auth-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
+}
+
+/* Password visibility toggle */
+.password-toggle {
+    position: relative;
+}
+
+.password-toggle .toggle-btn {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    padding: var(--space-1);
+}
+
+.password-toggle .toggle-btn:hover {
+    color: var(--text-primary);
+}
+
+@media (max-width: 576px) {
+    .auth-card {
+        padding: var(--space-6);
+        border-radius: var(--radius-xl);
+    }
+}

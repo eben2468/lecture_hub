@@ -1,0 +1,21 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # 1. If the request is for a real file in the root folder, serve it directly
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+
+    # 2. If the request does not contain /public/ and is not a real file, rewrite internally to public/
+    RewriteCond %{REQUEST_URI} !/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+
+    # 3. If the rewritten request inside public/ does not exist as a real file, rewrite to the root index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^public/(.*)$ index.php [L]
+</IfModule>
+
+# Deny access to sensitive files
+<FilesMatch "^\.env|composer\.(json|lock)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>

@@ -1,0 +1,159 @@
+/**
+ * ============================================================
+ * Nadics LectureHub — Dark Mode Overrides
+ * ============================================================
+ * Applied when [data-theme="dark"] is set on <html> element.
+ * Swaps CSS custom properties to dark-friendly values.
+ * ============================================================
+ */
+
+[data-theme="dark"] {
+    /* ---- Semantic Colors (Dark Mode) ---- */
+    --bg-body:        #0B0F19;
+    --bg-surface:     #111827;
+    --bg-surface-alt: #0F172A;
+    --bg-sidebar:     #030712;
+    --bg-navbar:      #111827;
+    --bg-card:        #111827;
+    --bg-input:       #1E293B;
+    --bg-hover:       #1E293B;
+
+    --text-primary:   #F1F5F9;
+    --text-secondary: #94A3B8;
+    --text-muted:     #64748B;
+    --text-inverse:   #0F172A;
+    --text-link:      #60A5FA;
+
+    --border-color:   #1E293B;
+    --border-light:   #1E293B;
+    --border-focus:   #3B82F6;
+
+    /* ---- Adjusted Shadows (Dark) ---- */
+    --shadow-xs:  0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-sm:  0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md:  0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+    --shadow-lg:  0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+    --shadow-xl:  0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+    --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+
+    color-scheme: dark;
+}
+
+/* Scrollbar in dark mode */
+[data-theme="dark"] ::-webkit-scrollbar-track {
+    background: var(--bg-body);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+    background: var(--gray-700);
+}
+
+/* Selection */
+[data-theme="dark"] ::selection {
+    background-color: var(--secondary-dark);
+}
+
+/* Toast adjustments */
+[data-theme="dark"] .toast-success {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success-light);
+}
+
+[data-theme="dark"] .toast-error {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger-light);
+}
+
+[data-theme="dark"] .toast-warning {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning-light);
+}
+
+[data-theme="dark"] .toast-info {
+    background: rgba(37, 99, 235, 0.15);
+    color: var(--secondary-light);
+}
+
+/* Badge adjustments */
+[data-theme="dark"] .badge-primary { background: rgba(37, 99, 235, 0.2); }
+[data-theme="dark"] .badge-success { background: rgba(16, 185, 129, 0.2); }
+[data-theme="dark"] .badge-warning { background: rgba(245, 158, 11, 0.2); }
+[data-theme="dark"] .badge-danger  { background: rgba(239, 68, 68, 0.2); }
+[data-theme="dark"] .badge-info    { background: rgba(139, 92, 246, 0.2); }
+
+/* Auth card dark mode */
+[data-theme="dark"] .auth-card {
+    background: rgba(17, 24, 39, 0.97);
+    border: 1px solid var(--border-color);
+}
+
+[data-theme="dark"] .auth-card .auth-logo h2 {
+    color: var(--text-primary);
+}
+
+/* Table header dark adjustment */
+[data-theme="dark"] .table-slms thead th {
+    background: var(--bg-surface-alt);
+    border-bottom-color: var(--border-color);
+}
+
+/* Form inputs dark */
+[data-theme="dark"] .form-control-slms {
+    background: var(--bg-input);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .form-control-slms::placeholder {
+    color: var(--gray-600);
+}
+
+/* Navbar search dark */
+[data-theme="dark"] .navbar-search input {
+    background: var(--bg-input);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+/* Skeleton in dark mode */
+[data-theme="dark"] .skeleton {
+    background: linear-gradient(90deg, var(--gray-800) 25%, var(--gray-700) 50%, var(--gray-800) 75%);
+    background-size: 200% 100%;
+}
+
+/* Stat cards dark */
+[data-theme="dark"] .stat-change.up {
+    background: rgba(16, 185, 129, 0.2);
+}
+
+[data-theme="dark"] .stat-change.down {
+    background: rgba(239, 68, 68, 0.2);
+}
+
+/* Bootstrap overrides for dark mode */
+[data-theme="dark"] .modal-content {
+    background: var(--bg-surface);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .modal-header {
+    border-bottom-color: var(--border-color);
+}
+
+[data-theme="dark"] .modal-footer {
+    border-top-color: var(--border-color);
+}
+
+[data-theme="dark"] .dropdown-menu {
+    background: var(--bg-surface);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .dropdown-item {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .dropdown-item:hover {
+    background: var(--bg-hover);
+}

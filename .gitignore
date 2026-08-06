@@ -1,0 +1,52 @@
+# ============================================================
+# Nadics LectureHub — Git Ignore Rules
+# ============================================================
+
+# Environment
+.env
+*.env.local
+
+# Vendor / Dependencies
+/vendor/
+/node_modules/
+
+# Storage (generated at runtime)
+/storage/logs/*
+/storage/cache/*
+/storage/sessions/*
+/storage/temp/*
+!storage/logs/.gitkeep
+!storage/cache/.gitkeep
+!storage/sessions/.gitkeep
+!storage/temp/.gitkeep
+
+# Uploads (user content)
+/public/uploads/profiles/*
+/public/uploads/lectures/*
+/public/uploads/materials/*
+/public/uploads/temp/*
+!public/uploads/profiles/.gitkeep
+!public/uploads/lectures/.gitkeep
+!public/uploads/materials/.gitkeep
+!public/uploads/temp/.gitkeep
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# OS
+desktop.ini
+.Spotlight-V100
+.Trashes
+
+# Compiled
+*.cache
+*.log
+
+# Testing
+/tests/coverage/
