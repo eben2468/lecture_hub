@@ -67,7 +67,7 @@ class UniversityController extends Controller
      */
     public function store(Request $request): void
     {
-        $this->authorize(['super_admin']);
+        $this->authorize(['super_admin', 'university_admin']);
 
         $validated = $this->validate($request, [
             'name'    => 'required|min:3|max:255',
@@ -103,7 +103,7 @@ class UniversityController extends Controller
      */
     public function update(Request $request, string $id): void
     {
-        $this->authorize(['super_admin']);
+        $this->authorize(['super_admin', 'university_admin']);
 
         $university = QueryBuilder::table('universities')->where('id', '=', $id)->first();
         if (!$university) {
