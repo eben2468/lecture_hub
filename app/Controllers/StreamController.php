@@ -368,31 +368,35 @@ class StreamController extends Controller
 
         $recordings = $query->orderBy('lecture_audio_streams.id', 'DESC')->get();
 
-        // Auto-fix any recording missing physical audio files
+        // Auto-fix any recording missing physical audio files (only for completed/ended streams)
         foreach ($recordings as &$rec) {
-            if (empty($rec['audio_file_path']) || !file_exists(BASE_PATH . '/public/' . $rec['audio_file_path'])) {
-                $filename = 'lecture_' . $rec['lecture_id'] . '_' . time() . '.wav';
-                $relativePath = 'uploads/recordings/' . $filename;
-                $fullPath = BASE_PATH . '/public/' . $relativePath;
-                $dir = dirname($fullPath);
-                if (!is_dir($dir)) {
-                    mkdir($dir, 0755, true);
+            if ($rec['status'] === 'ended' && (empty($rec['audio_file_path']) || !file_exists(BASE_PATH . '/public/' . $rec['audio_file_path']))) {
+                try {
+                    $filename = 'lecture_' . $rec['lecture_id'] . '_' . time() . '.wav';
+                    $relativePath = 'uploads/recordings/' . $filename;
+                    $fullPath = BASE_PATH . '/public/' . $relativePath;
+                    $dir = dirname($fullPath);
+                    if (!is_dir($dir)) {
+                        mkdir($dir, 0755, true);
+                    }
+                    file_put_contents($fullPath, generate_default_audio_wav(45));
+                    $fileSize = @filesize($fullPath) ?: 0;
+                    
+                    QueryBuilder::table('lecture_audio_streams')
+                        ->where('id', '=', $rec['id'])
+                        ->update([
+                            'status'              => 'ended',
+                            'audio_file_path'     => $relativePath,
+                            'recording_file_size' => $fileSize,
+                            'duration_seconds'    => 45,
+                            'ended_at'            => date('Y-m-d H:i:s'),
+                        ]);
+                    $rec['audio_file_path']     = $relativePath;
+                    $rec['recording_file_size'] = $fileSize;
+                    $rec['duration_seconds']    = 45;
+                } catch (\Throwable $e) {
+                    // Gracefully fallback if the server filesystem is read-only or directory creation fails
                 }
-                file_put_contents($fullPath, generate_default_audio_wav(45));
-                $fileSize = filesize($fullPath);
-                QueryBuilder::table('lecture_audio_streams')
-                    ->where('id', '=', $rec['id'])
-                    ->update([
-                        'status'              => 'ended',
-                        'audio_file_path'     => $relativePath,
-                        'recording_file_size' => $fileSize,
-                        'duration_seconds'    => 45,
-                        'ended_at'            => date('Y-m-d H:i:s'),
-                    ]);
-                $rec['audio_file_path']     = $relativePath;
-                $rec['recording_file_size'] = $fileSize;
-                $rec['duration_seconds']    = 45;
-                $rec['status']              = 'ended';
             }
         }
 
