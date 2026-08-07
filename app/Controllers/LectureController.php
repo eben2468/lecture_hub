@@ -473,7 +473,256 @@ class LectureController extends Controller
         QueryBuilder::table('lectures')
             ->where('id', '=', $id)
             ->update($updateData);
-
+ 
         $this->redirectWithSuccess(url('/lectures/' . $id), 'Lecture status updated to ' . ucfirst($newStatus) . '.');
     }
+
+    /**
+     * Show the edit lecture form.
+     */
+    public function edit(Request $request, string $id): void
+    {
+        $this->authorize(['lecturer', 'university_admin', 'super_admin']);
+
+        $lecture = QueryBuilder::table('lectures')
+            ->where('id', '=', $id)
+            ->first();
+
+        if (!$lecture) {
+            abort(404, 'Lecture not found.');
+        }
+
+        $auth = Auth::getInstance();
+        $userId = $auth->id();
+        $role = $auth->role();
+
+        // Authorization check: lecturers can only edit their own lectures
+        if ($role === 'lecturer' && (int)$lecture['lecturer_id'] !== $userId) {
+            $this->redirectWithError(url('/lectures'), 'Access Denied: You are not authorized to edit this lecture.');
+            return;
+        }
+
+        // Fetch courses (reusing create logic)
+        if ($role === 'lecturer') {
+            $courses = QueryBuilder::table('course_lecturers')
+                ->join('courses', 'course_lecturers.course_id', '=', 'courses.id')
+                ->where('course_lecturers.lecturer_id', '=', $userId)
+                ->select(['courses.id', 'courses.code', 'courses.title'])
+                ->get();
+
+            if (empty($courses)) {
+                $courses = QueryBuilder::table('courses')
+                    ->where('status', '=', 'active')
+                    ->select(['id', 'code', 'title'])
+                    ->get();
+            }
+        } else {
+            $courses = QueryBuilder::table('courses')
+                ->where('status', '=', 'active')
+                ->select(['id', 'code', 'title'])
+                ->get();
+        }
+
+        $lectureHalls = QueryBuilder::table('lecture_halls')
+            ->where('status', '=', 'active')
+            ->get();
+
+        $this->view('lectures.edit', [
+            'page_title'       => 'Edit Lecture — ' . $lecture['title'],
+            'page_description' => 'Update the details and schedule for this lecture.',
+            'lecture'          => $lecture,
+            'courses'          => $courses,
+            'lecture_halls'    => $lectureHalls,
+        ]);
+    }
+
+    /**
+     * Update an existing lecture.
+     */
+    public function update(Request $request, string $id): void
+    {
+        $this->authorize(['lecturer', 'university_admin', 'super_admin']);
+
+        $lecture = QueryBuilder::table('lectures')
+            ->where('id', '=', $id)
+            ->first();
+
+        if (!$lecture) {
+            abort(404, 'Lecture not found.');
+        }
+
+        $auth = Auth::getInstance();
+        $userId = $auth->id();
+        $role = $auth->role();
+
+        // Authorization check: lecturers can only edit their own lectures
+        if ($role === 'lecturer' && (int)$lecture['lecturer_id'] !== $userId) {
+            $this->redirectWithError(url('/lectures'), 'Access Denied: You are not authorized to edit this lecture.');
+            return;
+        }
+
+        $validated = $this->validate($request, [
+            'course_id'       => 'required|integer|exists:courses,id',
+            'title'           => 'required|min:3|max:255',
+            'description'     => 'nullable',
+            'lecture_hall_id'  => 'nullable|integer',
+            'scheduled_start' => 'required|date',
+            'scheduled_end'   => 'required|date',
+        ]);
+
+        $scheduledStart = date('Y-m-d H:i:s', strtotime($validated['scheduled_start']));
+        $scheduledEnd   = date('Y-m-d H:i:s', strtotime($validated['scheduled_end']));
+        $errors         = [];
+
+        // Validation only applies if lecture status is scheduled
+        if ($lecture['status'] === 'scheduled') {
+            // Constraint 1: Scheduled start must not be in the past (unless start time is unchanged)
+            if ($scheduledStart !== $lecture['scheduled_start'] && strtotime($scheduledStart) < time() - 60) {
+                $errors['scheduled_start'] = ['The scheduled start time cannot be in the past.'];
+            }
+
+            // Constraint 2: Scheduled end must be after scheduled start
+            if (strtotime($scheduledEnd) <= strtotime($scheduledStart)) {
+                $errors['scheduled_end'] = ['The scheduled end time must be after the start time.'];
+            }
+
+            $lectureHallId = !empty($validated['lecture_hall_id'] ?? null) ? (int)$validated['lecture_hall_id'] : null;
+
+            // Constraint 3: Lecture Hall Overlap (if physical venue is selected and changed)
+            if ($lectureHallId) {
+                $hallExists = QueryBuilder::table('lecture_halls')
+                    ->where('id', '=', $lectureHallId)
+                    ->where('status', '=', 'active')
+                    ->exists();
+                if (!$hallExists) {
+                    $errors['lecture_hall_id'] = ['The selected lecture hall is invalid or inactive.'];
+                } else {
+                    $hallConflict = QueryBuilder::table('lectures')
+                        ->where('lecture_hall_id', '=', $lectureHallId)
+                        ->where('id', '!=', $id)
+                        ->where('status', '!=', 'cancelled')
+                        ->where('scheduled_start', '<', $scheduledEnd)
+                        ->where('scheduled_end', '>', $scheduledStart)
+                        ->exists();
+
+                    if ($hallConflict) {
+                        $errors['lecture_hall_id'] = ['This lecture hall is already booked for another lecture during the selected time period.'];
+                    }
+                }
+            }
+
+            // Constraint 4: Lecturer Overlap (cannot teach two overlapping lectures)
+            $lecturerConflict = QueryBuilder::table('lectures')
+                ->where('lecturer_id', '=', $lecture['lecturer_id'])
+                ->where('id', '!=', $id)
+                ->where('status', '!=', 'cancelled')
+                ->where('scheduled_start', '<', $scheduledEnd)
+                ->where('scheduled_end', '>', $scheduledStart)
+                ->exists();
+
+            if ($lecturerConflict) {
+                $errors['scheduled_start'] = $errors['scheduled_start'] ?? [];
+                $errors['scheduled_start'][] = 'You have another lecture scheduled during this time slot.';
+            }
+
+            // Constraint 5: Course Overlap
+            $courseConflict = QueryBuilder::table('lectures')
+                ->where('course_id', '=', $validated['course_id'])
+                ->where('id', '!=', $id)
+                ->where('status', '!=', 'cancelled')
+                ->where('scheduled_start', '<', $scheduledEnd)
+                ->where('scheduled_end', '>', $scheduledStart)
+                ->exists();
+
+            if ($courseConflict) {
+                $errors['course_id'] = ['This course already has a lecture scheduled during this time slot.'];
+            }
+        } else {
+            // If already live or completed, prevent modifying course, start, or end times
+            $validated['course_id'] = $lecture['course_id'];
+            $validated['lecture_hall_id'] = $lecture['lecture_hall_id'];
+            $scheduledStart = $lecture['scheduled_start'];
+            $scheduledEnd = $lecture['scheduled_end'];
+        }
+
+        if (!empty($errors)) {
+            if ($request->expectsJson() || $request->isApi()) {
+                Response::error('Validation failed', 422, $errors);
+            }
+            $this->backWithErrors($errors, $request->all());
+            return;
+        }
+
+        QueryBuilder::table('lectures')
+            ->where('id', '=', $id)
+            ->update([
+                'course_id'       => $validated['course_id'],
+                'lecture_hall_id'  => !empty($validated['lecture_hall_id']) ? (int)$validated['lecture_hall_id'] : null,
+                'title'           => $validated['title'],
+                'description'     => $validated['description'] ?? null,
+                'scheduled_start' => $scheduledStart,
+                'scheduled_end'   => $scheduledEnd,
+                'updated_at'      => date('Y-m-d H:i:s'),
+            ]);
+
+        $this->redirectWithSuccess(url('/lectures/' . $id), 'Lecture details updated successfully.');
+    }
+
+    /**
+     * Delete a lecture and cleanup associated physical media files.
+     */
+    public function destroy(Request $request, string $id): void
+    {
+        $this->authorize(['lecturer', 'university_admin', 'super_admin']);
+
+        $lecture = QueryBuilder::table('lectures')
+            ->where('id', '=', $id)
+            ->first();
+
+        if (!$lecture) {
+            abort(404, 'Lecture not found.');
+        }
+
+        $auth = Auth::getInstance();
+        $userId = $auth->id();
+        $role = $auth->role();
+
+        // Authorization check: lecturers can only delete their own lectures
+        if ($role === 'lecturer' && (int)$lecture['lecturer_id'] !== $userId) {
+            $this->redirectWithError(url('/lectures'), 'Access Denied: You are not authorized to delete this lecture.');
+            return;
+        }
+
+        // 1. Delete physical files for associated audio stream recording
+        $stream = QueryBuilder::table('lecture_audio_streams')
+            ->where('lecture_id', '=', $id)
+            ->first();
+        if ($stream && !empty($stream['audio_file_path'])) {
+            $fullPath = BASE_PATH . '/public/' . ltrim($stream['audio_file_path'], '/');
+            if (file_exists($fullPath) && is_file($fullPath)) {
+                @unlink($fullPath);
+            }
+        }
+
+        // 2. Delete physical files for associated course materials linked to this lecture
+        $materials = QueryBuilder::table('course_materials')
+            ->where('lecture_id', '=', $id)
+            ->get();
+        foreach ($materials as $mat) {
+            if (!empty($mat['file_path'])) {
+                $fullPath = BASE_PATH . '/public/' . ltrim($mat['file_path'], '/');
+                if (file_exists($fullPath) && is_file($fullPath)) {
+                    @unlink($fullPath);
+                }
+            }
+        }
+
+        // 3. Delete the lecture itself (cascading deletes will handle child rows in db)
+        QueryBuilder::table('lectures')
+            ->where('id', '=', $id)
+            ->delete();
+
+        $this->redirectWithSuccess(url('/lectures'), 'Lecture deleted successfully.');
+    }
 }
+

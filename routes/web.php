@@ -114,6 +114,9 @@ $router->group(['middleware' => [AuthMiddleware::class, CsrfMiddleware::class]],
     $router->get('/lectures/create', 'LectureController@create')->name('lectures.create');
     $router->post('/lectures', 'LectureController@store')->name('lectures.store');
     $router->get('/lectures/{id}', 'LectureController@show')->name('lectures.show');
+    $router->get('/lectures/{id}/edit', 'LectureController@edit')->name('lectures.edit');
+    $router->post('/lectures/{id}', 'LectureController@update')->name('lectures.update');
+    $router->post('/lectures/{id}/delete', 'LectureController@destroy')->name('lectures.delete');
     $router->get('/lectures/{id}/transcript', 'AiController@showTranscript')->name('lectures.transcript');
     $router->post('/lectures/{id}/status', 'LectureController@updateStatus')->name('lectures.status');
     $router->get('/ai-assistant', 'AiController@assistant')->name('ai.assistant');

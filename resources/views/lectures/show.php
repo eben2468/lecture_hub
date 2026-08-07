@@ -9,6 +9,13 @@ $__view->layout('layouts.app', [
 
 $auth     = \Core\Auth::getInstance();
 $userRole = $auth->role();
+
+$statusClass = match($lecture['status']) {
+    'live'      => 'badge-danger',
+    'completed' => 'badge-success',
+    'cancelled' => 'badge-warning',
+    default     => 'badge-info',
+};
 ?>
 
 <?php $__view->section('content'); ?>
@@ -19,17 +26,24 @@ $userRole = $auth->role();
             <h1 class="page-title mt-2"><?= e($lecture['title']) ?></h1>
             <p class="page-subtitle"><?= e($lecture['course_code']) ?> — <?= e($lecture['course_title']) ?></p>
         </div>
-        <?php
-            $statusClass = match($lecture['status']) {
-                'live'      => 'badge-danger',
-                'completed' => 'badge-success',
-                'cancelled' => 'badge-warning',
-                default     => 'badge-info',
-            };
-        ?>
-        <span class="badge-slms <?= $statusClass ?>" style="font-size:1rem;padding:8px 20px;">
-            <?= ucfirst($lecture['status']) ?>
-        </span>
+        <div class="d-flex align-items-center gap-3">
+            <span class="badge-slms <?= $statusClass ?>" style="font-size:1rem;padding:8px 20px;">
+                <?= ucfirst($lecture['status']) ?>
+            </span>
+            <?php if (in_array($userRole, ['lecturer', 'university_admin', 'super_admin']) && ((int)$lecture['lecturer_id'] === (int)$auth->id() || in_array($userRole, ['university_admin', 'super_admin']))): ?>
+                <div class="d-flex gap-2">
+                    <a href="<?= url('/lectures/' . $lecture['id'] . '/edit') ?>" class="btn-slms btn-sm btn-outline-slms" title="Edit Lecture">
+                        <i class="fas fa-edit me-1"></i> Edit
+                    </a>
+                    <form method="POST" action="<?= url('/lectures/' . $lecture['id'] . '/delete') ?>" onsubmit="return confirm('Are you sure you want to delete this lecture? This will permanently delete all associated recordings, transcripts, and materials.');" style="display:inline;">
+                        <?= csrf_field() ?>
+                        <button type="submit" class="btn-slms btn-sm btn-danger-slms">
+                            <i class="fas fa-trash-alt me-1"></i> Delete
+                        </button>
+                    </form>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
 
     <div class="row g-4">

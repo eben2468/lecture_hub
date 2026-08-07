@@ -70,26 +70,50 @@ $__view->layout('layouts.app', [
                 ?>
                 <div class="col-lg-4 col-md-6">
                     <div class="slms-card p-4 h-100" style="transition:transform 0.2s,box-shadow 0.2s;cursor:pointer;" onmouseover="this.style.transform='translateY(-4px)';this.style.boxShadow='0 12px 40px rgba(0,0,0,.15)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
-                        <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
                             <span class="badge-slms badge-primary"><?= e($lec['course_code']) ?></span>
-                            <?php 
-                                $dispStatus = ($lec['status'] === 'live' || ($lec['is_live'] ?? 0) == 1) ? 'live' : $lec['status'];
-                                $dispClass = match($dispStatus) {
-                                    'live'      => 'badge-danger',
-                                    'completed' => 'badge-success',
-                                    'cancelled' => 'badge-warning',
-                                    default     => 'badge-info',
-                                };
-                                $dispIcon = match($dispStatus) {
-                                    'live'      => 'fas fa-broadcast-tower',
-                                    'completed' => 'fas fa-check-circle',
-                                    'cancelled' => 'fas fa-times-circle',
-                                    default     => 'fas fa-clock',
-                                };
-                            ?>
-                            <span class="badge-slms <?= $dispClass ?>">
-                                <i class="<?= $dispIcon ?> me-1"></i> <?= ucfirst($dispStatus) ?>
-                            </span>
+                            <div class="d-flex align-items-center gap-2">
+                                <?php 
+                                    $dispStatus = ($lec['status'] === 'live' || ($lec['is_live'] ?? 0) == 1) ? 'live' : $lec['status'];
+                                    $dispClass = match($dispStatus) {
+                                        'live'      => 'badge-danger',
+                                        'completed' => 'badge-success',
+                                        'cancelled' => 'badge-warning',
+                                        default     => 'badge-info',
+                                    };
+                                    $dispIcon = match($dispStatus) {
+                                        'live'      => 'fas fa-broadcast-tower',
+                                        'completed' => 'fas fa-check-circle',
+                                        'cancelled' => 'fas fa-times-circle',
+                                        default     => 'fas fa-clock',
+                                    };
+                                ?>
+                                <span class="badge-slms <?= $dispClass ?>">
+                                    <i class="<?= $dispIcon ?> me-1"></i> <?= ucfirst($dispStatus) ?>
+                                </span>
+                                <?php if (in_array($userRole, ['lecturer', 'university_admin', 'super_admin'])): ?>
+                                    <div class="dropdown">
+                                        <button class="btn btn-link text-muted p-0" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="border:none;box-shadow:none;">
+                                            <i class="fas fa-ellipsis-v"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end" style="background:var(--bg-card); border:1px solid rgba(255,255,255,0.08); box-shadow:var(--shadow-lg);">
+                                            <li>
+                                                <a class="dropdown-item py-2 small" href="<?= url('/lectures/' . $lec['id'] . '/edit') ?>" style="color:var(--text-primary);">
+                                                    <i class="fas fa-edit me-2 text-info"></i> Edit Lecture
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <form method="POST" action="<?= url('/lectures/' . $lec['id'] . '/delete') ?>" onsubmit="return confirm('Are you sure you want to delete this lecture? This will permanently delete all associated recordings, transcripts, and materials.');">
+                                                    <?= csrf_field() ?>
+                                                    <button type="submit" class="dropdown-item py-2 small text-danger" style="background:none; border:none; width:100%; text-align:left;">
+                                                        <i class="fas fa-trash-alt me-2 text-danger"></i> Delete Lecture
+                                                    </button>
+                                                </form>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
                         </div>
 
                         <h5 class="fw-700 text-primary mb-1" style="line-height:1.3;">
